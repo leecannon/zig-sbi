@@ -713,6 +713,61 @@ pub const hsm = struct {
     }
 };
 
+/// The System Reset Extension provides a function that allow the supervisor software to request system-level
+/// reboot or shutdown.
+/// The term "system" refers to the world-view of supervisor software and the underlying SBI implementation
+/// could be machine mode firmware or hypervisor.
+pub const reset = struct {
+    pub fn available() bool {
+        return base.probeExtension(.SRST);
+    }
+
+    /// Reset the system based on provided `reset_type` and `reset_reason`.
+    /// This is a synchronous call and does not return if it succeeds.
+    ///
+    /// When supervisor software is running natively, the SBI implementation is machine mode firmware.
+    /// In this case, shutdown is equivalent to physical power down of the entire system and cold reboot is
+    /// equivalent to physical power cycle of the entire system. Further, warm reboot is equivalent to a power
+    /// cycle of main processor and parts of the system but not the entire system. For example, on a server
+    /// class system with a BMC (board management controller), a warm reboot will not power cycle the BMC
+    /// whereas a cold reboot will definitely power cycle the BMC.
+    ///
+    /// When supervisor software is running inside a virtual machine, the SBI implementation is a hypervisor.
+    /// The shutdown, cold reboot and warm reboot will behave functionally the same as the native case but
+    /// might not result in any physical power changes.
+    pub fn systemReset(reset_type: ResetType, reset_reason: ResetReason) error{ INVALID_PARAM, NOT_SUPPORTED, FAILED }!void {
+        try ecall.twoArgsNoReturnWithError(
+            .SRST,
+            @enumToInt(SRST_FID.RESET),
+            @enumToInt(reset_type),
+            @enumToInt(reset_reason),
+            error{ INVALID_PARAM, NOT_SUPPORTED, FAILED },
+        );
+        unreachable;
+    }
+
+    pub const ResetType = enum(u32) {
+        SHUTDOWN = 0x0,
+        COLD_REBOOT = 0x1,
+        WARM_REBOOT = 0x2,
+        _,
+    };
+
+    pub const ResetReason = enum(u32) {
+        NONE = 0x0,
+        SYSFAIL = 0x1,
+        _,
+    };
+
+    const SRST_FID = enum(i32) {
+        RESET = 0x0,
+    };
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
 const ecall = struct {
     inline fn zeroArgsNoReturnWithError(eid: EID, fid: i32, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
