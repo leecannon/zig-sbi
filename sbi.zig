@@ -275,6 +275,59 @@ pub const time = struct {
     }
 };
 
+pub const HartMask = union(enum) {
+    /// all available harts must be considered
+    all,
+    mask: struct {
+        /// a scalar bit-vector containing hartids
+        harts: usize,
+        /// he starting hartid from which bit-vector must be computed
+        base: usize,
+    },
+};
+
+pub const ipi = struct {
+    pub fn available() bool {
+        return base.probeExtension(.IPI);
+    }
+
+    /// Send an inter-processor interrupt to all the harts defined in `hart_mask`.
+    /// Interprocessor interrupts manifest at the receiving harts as the supervisor software interrupts.
+    pub fn sendIPI(hart_mask: HartMask) error{INVALID_PARAM}!void {
+        switch (hart_mask) {
+            .all => {
+                ecall.twoArgsNoReturnWithError(
+                    .IPI,
+                    @enumToInt(IPI_FID.IPI_SEND_IPI),
+                    -1,
+                    -1,
+                    error{ NOT_SUPPORTED, INVALID_PARAM },
+                ) catch unreachable;
+            },
+            .mask => |mask| {
+                ecall.twoArgsNoReturnWithError(
+                    .IPI,
+                    @enumToInt(IPI_FID.IPI_SEND_IPI),
+                    @bitCast(isize, mask.harts),
+                    @bitCast(isize, mask.base),
+                    error{ NOT_SUPPORTED, INVALID_PARAM },
+                ) catch |err| switch (err) {
+                    error.NOT_SUPPORTED => unreachable,
+                    else => |e| return e,
+                };
+            },
+        }
+    }
+
+    const IPI_FID = enum(i32) {
+        IPI_SEND_IPI = 0x0,
+    };
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
 const ecall = struct {
     inline fn zeroArgsWithReturnNoError(eid: EID, fid: i32) isize {
         return asm volatile ("ecall"
@@ -404,6 +457,20 @@ const ecall = struct {
             : [err] "={x10}" (err),
             : [eid] "{x17}" (@enumToInt(eid)),
             : "memory"
+        );
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn twoArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+            : "memory", "x11"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
