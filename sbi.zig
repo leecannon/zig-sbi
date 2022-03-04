@@ -294,33 +294,271 @@ pub const ipi = struct {
     /// Send an inter-processor interrupt to all the harts defined in `hart_mask`.
     /// Interprocessor interrupts manifest at the receiving harts as the supervisor software interrupts.
     pub fn sendIPI(hart_mask: HartMask) error{INVALID_PARAM}!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
         switch (hart_mask) {
             .all => {
-                ecall.twoArgsNoReturnWithError(
-                    .IPI,
-                    @enumToInt(IPI_FID.IPI_SEND_IPI),
-                    -1,
-                    -1,
-                    error{ NOT_SUPPORTED, INVALID_PARAM },
-                ) catch unreachable;
+                bit_mask = 0;
+                mask_base = 0;
             },
             .mask => |mask| {
-                ecall.twoArgsNoReturnWithError(
-                    .IPI,
-                    @enumToInt(IPI_FID.IPI_SEND_IPI),
-                    @bitCast(isize, mask.harts),
-                    @bitCast(isize, mask.base),
-                    error{ NOT_SUPPORTED, INVALID_PARAM },
-                ) catch |err| switch (err) {
-                    error.NOT_SUPPORTED => unreachable,
-                    else => |e| return e,
-                };
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
             },
         }
+
+        ecall.twoArgsNoReturnWithError(
+            .IPI,
+            @enumToInt(IPI_FID.SEND_IPI),
+            bit_mask,
+            mask_base,
+            error{ NOT_SUPPORTED, INVALID_PARAM },
+        ) catch |err| switch (err) {
+            error.NOT_SUPPORTED => unreachable,
+            else => |e| return e,
+        };
     }
 
     const IPI_FID = enum(i32) {
-        IPI_SEND_IPI = 0x0,
+        SEND_IPI = 0x0,
+    };
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
+/// Any function that wishes to use range of addresses (i.e. `start_addr` and `size`), have to abide by the below
+/// constraints on range parameters.
+///
+/// The remote fence function acts as a full TLB flush if
+///   • `start_addr` and `size` are both 0
+///   • `size` is equal to 2^XLEN-1
+pub const rfence = struct {
+    pub fn available() bool {
+        return base.probeExtension(.RFENCE);
+    }
+
+    /// Instructs remote harts to execute FENCE.I instruction.
+    pub fn remoteFenceI(hart_mask: HartMask) error{INVALID_PARAM}!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        ecall.twoArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.FENCE_I),
+            bit_mask,
+            mask_base,
+            error{ NOT_SUPPORTED, INVALID_PARAM },
+        ) catch |err| switch (err) {
+            error.NOT_SUPPORTED => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    /// Instructs the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
+    /// virtual addresses between `start_addr` and `size`.
+    pub fn remoteSFenceVMA(hart_mask: HartMask, start_addr: usize, size: usize) error{ INVALID_PARAM, INVALID_ADDRESS }!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        ecall.fourArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.SFENCE_VMA),
+            bit_mask,
+            mask_base,
+            @bitCast(isize, start_addr),
+            @bitCast(isize, size),
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+        ) catch |err| switch (err) {
+            error.NOT_SUPPORTED => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    /// Instructs the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
+    /// virtual addresses between `start_addr` and `size`.
+    /// This covers only the given ASID.
+    pub fn remoteSFenceVMAWithASID(hart_mask: HartMask, start_addr: usize, size: usize, asid: usize) error{ INVALID_PARAM, INVALID_ADDRESS }!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        ecall.fiveArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.SFENCE_VMA_ASID),
+            bit_mask,
+            mask_base,
+            @bitCast(isize, start_addr),
+            @bitCast(isize, size),
+            @bitCast(isize, asid),
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+        ) catch |err| switch (err) {
+            error.NOT_SUPPORTED => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    /// Instruct the remote harts to execute one or more HFENCE.GVMA instructions, covering the range of
+    /// guest physical addresses between start and size only for the given VMID.
+    /// This function call is only valid for harts implementing hypervisor extension.
+    pub fn remoteHFenceGVMAWithVMID(hart_mask: HartMask, start_addr: usize, size: usize, vmid: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        try ecall.fiveArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.HFENCE_GVMA_VMID),
+            bit_mask,
+            mask_base,
+            @bitCast(isize, start_addr),
+            @bitCast(isize, size),
+            @bitCast(isize, vmid),
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+        );
+    }
+
+    /// Instruct the remote harts to execute one or more HFENCE.GVMA instructions, covering the range of
+    /// guest physical addresses between start and size only for all guests.
+    /// This function call is only valid for harts implementing hypervisor extension.
+    pub fn remoteHFenceGVMA(hart_mask: HartMask, start_addr: usize, size: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        try ecall.fourArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.HFENCE_GVMA),
+            bit_mask,
+            mask_base,
+            @bitCast(isize, start_addr),
+            @bitCast(isize, size),
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+        );
+    }
+
+    /// Instruct the remote harts to execute one or more HFENCE.VVMA instructions, covering the range of
+    /// guest virtual addresses between `start_addr` and `size` for the given ASID and current VMID (in hgatp CSR) of
+    /// calling hart.
+    /// This function call is only valid for harts implementing hypervisor extension.
+    pub fn remoteHFenceVVMAWithASID(hart_mask: HartMask, start_addr: usize, size: usize, asid: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        try ecall.fiveArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.HFENCE_VVMA_ASID),
+            bit_mask,
+            mask_base,
+            @bitCast(isize, start_addr),
+            @bitCast(isize, size),
+            @bitCast(isize, asid),
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+        );
+    }
+
+    /// Instruct the remote harts to execute one or more HFENCE.VVMA instructions, covering the range of
+    /// guest virtual addresses between `start_addr` and `size` for current VMID (in hgatp CSR) of calling hart.
+    /// This function call is only valid for harts implementing hypervisor extension.
+    pub fn remoteHFenceVVMA(hart_mask: HartMask, start_addr: usize, size: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+        var bit_mask: isize = undefined;
+        var mask_base: isize = undefined;
+
+        switch (hart_mask) {
+            .all => {
+                bit_mask = 0;
+                mask_base = 0;
+            },
+            .mask => |mask| {
+                bit_mask = @bitCast(isize, mask.harts);
+                mask_base = @bitCast(isize, mask.base);
+            },
+        }
+
+        try ecall.fourArgsNoReturnWithError(
+            .RFENCE,
+            @enumToInt(RFENCE_FID.HFENCE_VVMA),
+            bit_mask,
+            mask_base,
+            @bitCast(isize, start_addr),
+            @bitCast(isize, size),
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+        );
+    }
+
+    const RFENCE_FID = enum(i32) {
+        FENCE_I = 0x0,
+        SFENCE_VMA = 0x1,
+        SFENCE_VMA_ASID = 0x2,
+        HFENCE_GVMA_VMID = 0x3,
+        HFENCE_GVMA = 0x4,
+        HFENCE_VVMA_ASID = 0x5,
+        HFENCE_VVMA = 0x6,
     };
 
     comptime {
@@ -470,6 +708,39 @@ const ecall = struct {
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
+            : "memory", "x11"
+        );
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn fourArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+              [arg3] "{x13}" (a3),
+            : "memory", "x11"
+        );
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn fiveArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, a4: isize, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+              [arg3] "{x13}" (a3),
+              [arg4] "{x14}" (a4),
             : "memory", "x11"
         );
         if (err == .SUCCESS) return;
