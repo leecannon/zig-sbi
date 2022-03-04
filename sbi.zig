@@ -178,6 +178,74 @@ pub const legacy = struct {
         ecall.legacyZeroArgsNoReturnWithError(.LEGACY_CLEAR_IPI, error{NOT_SUPPORTED}) catch unreachable;
     }
 
+    pub fn sendIPIAvailable() bool {
+        return base.probeExtension(.LEGACY_SEND_IPI);
+    }
+
+    /// Send an inter-processor interrupt to all the harts defined in hart_mask.
+    /// Interprocessor interrupts manifest at the receiving harts as Supervisor Software Interrupts.
+    /// `hart_mask` is a virtual address that points to a bit-vector of harts. The bit vector is represented as a
+    /// sequence of `usize` whose length equals the number of harts in the system divided by the number of bits in a `usize`,
+    /// rounded up to the next integer.
+    pub fn sendIPI(hart_mask: [*]const usize) void {
+        ecall.legacyOneArgsNoReturnWithError(.LEGACY_SEND_IPI, @bitCast(isize, @ptrToInt(hart_mask)), error{NOT_SUPPORTED}) catch unreachable;
+    }
+
+    pub fn remoteFenceIAvailable() bool {
+        return base.probeExtension(.LEGACY_REMOTE_FENCE_I);
+    }
+
+    /// Instructs remote harts to execute FENCE.I instruction.
+    /// The `hart_mask` is the same as described in `sendIPI`.
+    pub fn remoteFenceI(hart_mask: [*]const usize) void {
+        ecall.legacyOneArgsNoReturnWithError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @ptrToInt(hart_mask)), error{NOT_SUPPORTED}) catch unreachable;
+    }
+
+    pub fn remoteSFenceVMAAvailable() bool {
+        return base.probeExtension(.LEGACY_REMOTE_SFENCE_VMA);
+    }
+
+    /// Instructs the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
+    /// virtual addresses between `start` and `size`.
+    /// The `hart_mask` is the same as described in `sendIPI`.
+    pub fn remoteSFenceVMA(hart_mask: [*]const usize, start: usize, size: usize) void {
+        ecall.legacyThreeArgsNoReturnWithError(
+            .LEGACY_REMOTE_SFENCE_VMA,
+            @bitCast(isize, @ptrToInt(hart_mask)),
+            @bitCast(isize, start),
+            @bitCast(isize, size),
+            error{NOT_SUPPORTED},
+        ) catch unreachable;
+    }
+
+    pub fn remoteSFenceVMAWithASIDAvailable() bool {
+        return base.probeExtension(.LEGACY_REMOTE_SFENCE_VMA_ASID);
+    }
+
+    /// Instruct the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
+    /// virtual addresses between `start` and `size`. This covers only the given ASID.
+    /// The `hart_mask` is the same as described in `sendIPI`.
+    pub fn remoteSFenceVMAWithASID(hart_mask: [*]const usize, start: usize, size: usize, asid: usize) void {
+        ecall.legacyFourArgsNoReturnWithError(
+            .LEGACY_REMOTE_SFENCE_VMA_ASID,
+            @bitCast(isize, @ptrToInt(hart_mask)),
+            @bitCast(isize, start),
+            @bitCast(isize, size),
+            @bitCast(isize, asid),
+            error{NOT_SUPPORTED},
+        ) catch unreachable;
+    }
+
+    pub fn systemShutdownAvailable() bool {
+        return base.probeExtension(.LEGACY_SHUTDOWN);
+    }
+
+    /// Puts all the harts to shutdown state from supervisor point of view. This SBI call doesn’t return.
+    pub fn systemShutdown() noreturn {
+        ecall.legacyZeroArgsNoReturnWithError(.LEGACY_SHUTDOWN, error{NOT_SUPPORTED}) catch unreachable;
+        unreachable;
+    }
+
     comptime {
         std.testing.refAllDecls(@This());
     }
@@ -232,6 +300,37 @@ const ecall = struct {
             : [err] "={x10}" (err),
             : [eid] "{x17}" (@enumToInt(eid)),
               [arg0] "{x10}" (a0),
+            : "memory"
+        );
+
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn legacyThreeArgsNoReturnWithError(eid: EID, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+            : "memory"
+        );
+
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn legacyFourArgsNoReturnWithError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+              [arg3] "{x13}" (a3),
             : "memory"
         );
 
