@@ -47,39 +47,39 @@ pub const EID = enum(i32) {
 pub const base = struct {
     /// Returns the current SBI specification version.
     pub fn getSpecVersion() SpecVersion {
-        return @bitCast(SpecVersion, ecall.withFidZeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_SPEC_VERSION)));
+        return @bitCast(SpecVersion, ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_SPEC_VERSION)));
     }
 
     /// Returns the current SBI implementation ID, which is different for every SBI implementation. 
     /// It is intended that this implementation ID allows software to probe for SBI implementation quirks
     pub fn getImplementationId() ImplementationId {
-        return @intToEnum(ImplementationId, ecall.withFidZeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_ID)));
+        return @intToEnum(ImplementationId, ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_ID)));
     }
 
     /// Returns the current SBI implementation version.
     /// The encoding of this version number is specific to the SBI implementation.
     pub fn getImplementationVersion() isize {
-        return ecall.withFidZeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_VERSION));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_VERSION));
     }
 
     /// Returns false if the given SBI extension ID (EID) is not available, or true if it is available.
     pub fn probeExtension(eid: EID) bool {
-        return ecall.withFidOneArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.PROBE_EXT), @enumToInt(eid)) != 0;
+        return ecall.oneArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.PROBE_EXT), @enumToInt(eid)) != 0;
     }
 
     /// Return a value that is legal for the `mvendorid` CSR and 0 is always a legal value for this CSR.
     pub fn machineVendorId() isize {
-        return ecall.withFidZeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MVENDORID));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MVENDORID));
     }
 
     /// Return a value that is legal for the `marchid` CSR and 0 is always a legal value for this CSR.
     pub fn machineArchId() isize {
-        return ecall.withFidZeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MARCHID));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MARCHID));
     }
 
     /// Return a value that is legal for the `mimpid` CSR and 0 is always a legal value for this CSR.
     pub fn machineImplementationId() isize {
-        return ecall.withFidZeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MIMPID));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MIMPID));
     }
 
     pub const ImplementationId = enum(isize) {
@@ -124,8 +124,67 @@ pub const base = struct {
     }
 };
 
+/// These legacy SBI extension are deprecated in favor of the other extensions.
+/// Each function needs to be individually probed to check for support.
+pub const legacy = struct {
+    pub fn setTimerAvailable() bool {
+        return base.probeExtension(.LEGACY_SET_TIMER);
+    }
+
+    /// Programs the clock for next event after time_value time.
+    /// This function also clears the pending timer interrupt bit.
+    ///
+    /// If the supervisor wishes to clear the timer interrupt without scheduling the next timer event,
+    /// it can either request a timer interrupt infinitely far into the future
+    /// (i.e., `@bitCast(u64, @as(i64, -1))`), or it can instead mask the timer interrupt by clearing `sie.STIE` CSR bit.
+    pub fn setTimer(time_value: u64) void {
+        return ecall.legacyOneArgs64NoReturnWithError(.LEGACY_SET_TIMER, time_value, error{NOT_SUPPORTED}) catch unreachable;
+    }
+
+    pub fn consolePutCharAvailable() bool {
+        return base.probeExtension(.LEGACY_CONSOLE_PUTCHAR);
+    }
+
+    /// Write data present in char to debug console.
+    /// Unlike `consoleGetChar`, this SBI call will block if there remain any pending characters to be
+    /// transmitted or if the receiving terminal is not yet ready to receive the byte.
+    /// However, if the console doesn’t exist at all, then the character is thrown away
+    pub fn consolePutChar(char: u8) void {
+        return ecall.legacyOneArgsNoReturnWithError(.LEGACY_CONSOLE_PUTCHAR, char, error{NOT_SUPPORTED}) catch unreachable;
+    }
+
+    pub fn consoleGetCharAvailable() bool {
+        return base.probeExtension(.LEGACY_CONSOLE_GETCHAR);
+    }
+
+    /// Read a byte from debug console.
+    pub fn consoleGetChar() error{FAILED}!u8 {
+        return @intCast(
+            u8,
+            ecall.legacyZeroArgsWithReturnWithError(.LEGACY_CONSOLE_GETCHAR, error{ NOT_SUPPORTED, FAILED }) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            },
+        );
+    }
+
+    pub fn clearIPIAvailable() bool {
+        return base.probeExtension(.LEGACY_CLEAR_IPI);
+    }
+
+    /// Clears the pending IPIs if any. The IPI is cleared only in the hart for which this SBI call is invoked.
+    /// `clearIPI` is deprecated because S-mode code can clear `sip.SSIP` CSR bit directly
+    pub fn clearIPI() void {
+        ecall.legacyZeroArgsNoReturnWithError(.LEGACY_CLEAR_IPI, error{NOT_SUPPORTED}) catch unreachable;
+    }
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
 const ecall = struct {
-    inline fn withFidZeroArgsWithReturnNoError(eid: EID, fid: i32) isize {
+    inline fn zeroArgsWithReturnNoError(eid: EID, fid: i32) isize {
         return asm volatile ("ecall"
             : [value] "={x11}" (-> isize),
             : [eid] "{x17}" (@enumToInt(eid)),
@@ -134,7 +193,7 @@ const ecall = struct {
         );
     }
 
-    inline fn withFidOneArgsWithReturnNoError(eid: EID, fid: i32, a0: isize) isize {
+    inline fn oneArgsWithReturnNoError(eid: EID, fid: i32, a0: isize) isize {
         return asm volatile ("ecall"
             : [value] "={x11}" (-> isize),
             : [eid] "{x17}" (@enumToInt(eid)),
@@ -144,7 +203,65 @@ const ecall = struct {
         );
     }
 
-    inline fn withFidThreeArgsWithReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize) Error!isize {
+    inline fn legacyOneArgs64NoReturnWithError(eid: EID, a0: u64, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        if (is_64) {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [arg0] "{x10}" (a0),
+                : "memory"
+            );
+        } else {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
+                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                : "memory"
+            );
+        }
+
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn legacyOneArgsNoReturnWithError(eid: EID, a0: isize, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+            : "memory"
+        );
+
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn legacyZeroArgsWithReturnWithError(eid: EID, comptime ErrorT: type) ErrorT!isize {
+        var val: isize = undefined;
+        asm volatile ("ecall"
+            : [val] "={x10}" (val),
+            : [eid] "{x17}" (@enumToInt(eid)),
+            : "memory"
+        );
+        if (val >= 0) return val;
+        return @intToEnum(ErrorCode, val).toError(ErrorT);
+    }
+
+    inline fn legacyZeroArgsNoReturnWithError(eid: EID, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+            : "memory"
+        );
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn threeArgsWithReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!isize {
         var err: ErrorCode = undefined;
         var value: isize = undefined;
         asm volatile ("ecall"
@@ -158,7 +275,7 @@ const ecall = struct {
             : "memory"
         );
         if (err == .SUCCESS) return value;
-        return err.toError(Error);
+        return err.toError(ErrorT);
     }
 
     comptime {
@@ -178,9 +295,9 @@ const ErrorCode = enum(isize) {
     ALREADY_STOPPED = -8,
 
     fn toError(self: ErrorCode, comptime ErrorT: type) ErrorT {
-        const errors: []std.builtin.TypeInfo.Error = @typeInfo(ErrorT).ErrorSet.?;
+        const errors: []const std.builtin.TypeInfo.Error = @typeInfo(ErrorT).ErrorSet.?;
         inline for (errors) |err| {
-            if (self == @field(ErrorCode, err.name)) return @field(Error, err.name);
+            if (self == @field(ErrorCode, err.name)) return @field(ErrorT, err.name);
         }
         unreachable;
     }
