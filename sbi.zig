@@ -251,6 +251,30 @@ pub const legacy = struct {
     }
 };
 
+pub const time = struct {
+    pub fn available() bool {
+        return base.probeExtension(.TIME);
+    }
+
+    /// Programs the clock for next event after time_value time.
+    /// This function also clears the pending timer interrupt bit.
+    ///
+    /// If the supervisor wishes to clear the timer interrupt without scheduling the next timer event,
+    /// it can either request a timer interrupt infinitely far into the future
+    /// (i.e., `@bitCast(u64, @as(i64, -1))`), or it can instead mask the timer interrupt by clearing `sie.STIE` CSR bit.
+    pub fn setTimer(time_value: u64) void {
+        ecall.oneArgs64NoReturnWithError(.TIME, @enumToInt(TIME_FID.TIME_SET_TIMER), time_value, error{NOT_SUPPORTED}) catch unreachable;
+    }
+
+    const TIME_FID = enum(i32) {
+        TIME_SET_TIMER = 0x0,
+    };
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
 const ecall = struct {
     inline fn zeroArgsWithReturnNoError(eid: EID, fid: i32) isize {
         return asm volatile ("ecall"
@@ -269,6 +293,31 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
             : "memory", "x10"
         );
+    }
+
+    inline fn oneArgs64NoReturnWithError(eid: EID, fid: i32, a0: u64, comptime ErrorT: type) ErrorT!void {
+        var err: ErrorCode = undefined;
+        if (is_64) {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (a0),
+                : "memory", "x11"
+            );
+        } else {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
+                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                : "memory", "x11"
+            );
+        }
+
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
     }
 
     inline fn legacyOneArgs64NoReturnWithError(eid: EID, a0: u64, comptime ErrorT: type) ErrorT!void {
