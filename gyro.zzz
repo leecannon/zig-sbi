@@ -1,0 +1,14 @@
+pkgs:
+  sbi:
+    version: 0.2.0
+    description: "Zig wrapper around the RISC-V SBI specification"
+    license: MIT
+    source_url: "https://github.com/leecannon/zig-sbi"
+    tags:
+
+    root: sbi.zig
+    files:
+      README.md
+      LICENSE
+      build.zig
+      sbi.zig
