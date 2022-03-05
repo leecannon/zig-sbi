@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const runtime_safety = std.debug.runtime_safety;
+
 const is_64: bool = switch (builtin.cpu.arch) {
     .riscv64 => true,
     .riscv32 => false,
@@ -138,7 +140,16 @@ pub const legacy = struct {
     /// it can either request a timer interrupt infinitely far into the future
     /// (i.e., `@bitCast(u64, @as(i64, -1))`), or it can instead mask the timer interrupt by clearing `sie.STIE` CSR bit.
     pub fn setTimer(time_value: u64) void {
-        return ecall.legacyOneArgs64NoReturnWithError(.LEGACY_SET_TIMER, time_value, error{NOT_SUPPORTED}) catch unreachable;
+        if (runtime_safety) {
+            ecall.legacyOneArgs64NoReturnWithError(
+                .LEGACY_SET_TIMER,
+                time_value,
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.legacyOneArgs64NoReturnNoError(.LEGACY_SET_TIMER, time_value);
     }
 
     pub fn consolePutCharAvailable() bool {
@@ -150,7 +161,16 @@ pub const legacy = struct {
     /// transmitted or if the receiving terminal is not yet ready to receive the byte.
     /// However, if the console doesn’t exist at all, then the character is thrown away
     pub fn consolePutChar(char: u8) void {
-        return ecall.legacyOneArgsNoReturnWithError(.LEGACY_CONSOLE_PUTCHAR, char, error{NOT_SUPPORTED}) catch unreachable;
+        if (runtime_safety) {
+            ecall.legacyOneArgsNoReturnWithError(
+                .LEGACY_CONSOLE_PUTCHAR,
+                char,
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.legacyOneArgsNoReturnNoError(.LEGACY_CONSOLE_PUTCHAR, char);
     }
 
     pub fn consoleGetCharAvailable() bool {
@@ -159,12 +179,22 @@ pub const legacy = struct {
 
     /// Read a byte from debug console.
     pub fn consoleGetChar() error{FAILED}!u8 {
+        if (runtime_safety) {
+            return @intCast(
+                u8,
+                ecall.legacyZeroArgsWithReturnWithError(
+                    .LEGACY_CONSOLE_GETCHAR,
+                    error{ NOT_SUPPORTED, FAILED },
+                ) catch |err| switch (err) {
+                    error.NOT_SUPPORTED => unreachable,
+                    else => |e| return e,
+                },
+            );
+        }
+
         return @intCast(
             u8,
-            ecall.legacyZeroArgsWithReturnWithError(.LEGACY_CONSOLE_GETCHAR, error{ NOT_SUPPORTED, FAILED }) catch |err| switch (err) {
-                error.NOT_SUPPORTED => unreachable,
-                else => |e| return e,
-            },
+            try ecall.legacyZeroArgsWithReturnWithError(.LEGACY_CONSOLE_GETCHAR, error{FAILED}),
         );
     }
 
@@ -175,7 +205,12 @@ pub const legacy = struct {
     /// Clears the pending IPIs if any. The IPI is cleared only in the hart for which this SBI call is invoked.
     /// `clearIPI` is deprecated because S-mode code can clear `sip.SSIP` CSR bit directly
     pub fn clearIPI() void {
-        ecall.legacyZeroArgsNoReturnWithError(.LEGACY_CLEAR_IPI, error{NOT_SUPPORTED}) catch unreachable;
+        if (runtime_safety) {
+            ecall.legacyZeroArgsNoReturnWithError(.LEGACY_CLEAR_IPI, error{NOT_SUPPORTED}) catch unreachable;
+            return;
+        }
+
+        ecall.legacyZeroArgsNoReturnNoError(.LEGACY_CLEAR_IPI);
     }
 
     pub fn sendIPIAvailable() bool {
@@ -188,7 +223,16 @@ pub const legacy = struct {
     /// sequence of `usize` whose length equals the number of harts in the system divided by the number of bits in a `usize`,
     /// rounded up to the next integer.
     pub fn sendIPI(hart_mask: [*]const usize) void {
-        ecall.legacyOneArgsNoReturnWithError(.LEGACY_SEND_IPI, @bitCast(isize, @ptrToInt(hart_mask)), error{NOT_SUPPORTED}) catch unreachable;
+        if (runtime_safety) {
+            ecall.legacyOneArgsNoReturnWithError(
+                .LEGACY_SEND_IPI,
+                @bitCast(isize, @ptrToInt(hart_mask)),
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.legacyOneArgsNoReturnNoError(.LEGACY_SEND_IPI, @bitCast(isize, @ptrToInt(hart_mask)));
     }
 
     pub fn remoteFenceIAvailable() bool {
@@ -198,7 +242,16 @@ pub const legacy = struct {
     /// Instructs remote harts to execute FENCE.I instruction.
     /// The `hart_mask` is the same as described in `sendIPI`.
     pub fn remoteFenceI(hart_mask: [*]const usize) void {
-        ecall.legacyOneArgsNoReturnWithError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @ptrToInt(hart_mask)), error{NOT_SUPPORTED}) catch unreachable;
+        if (runtime_safety) {
+            ecall.legacyOneArgsNoReturnWithError(
+                .LEGACY_REMOTE_FENCE_I,
+                @bitCast(isize, @ptrToInt(hart_mask)),
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.legacyOneArgsNoReturnNoError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @ptrToInt(hart_mask)));
     }
 
     pub fn remoteSFenceVMAAvailable() bool {
@@ -209,13 +262,23 @@ pub const legacy = struct {
     /// virtual addresses between `start` and `size`.
     /// The `hart_mask` is the same as described in `sendIPI`.
     pub fn remoteSFenceVMA(hart_mask: [*]const usize, start: usize, size: usize) void {
-        ecall.legacyThreeArgsNoReturnWithError(
+        if (runtime_safety) {
+            ecall.legacyThreeArgsNoReturnWithError(
+                .LEGACY_REMOTE_SFENCE_VMA,
+                @bitCast(isize, @ptrToInt(hart_mask)),
+                @bitCast(isize, start),
+                @bitCast(isize, size),
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.legacyThreeArgsNoReturnNoError(
             .LEGACY_REMOTE_SFENCE_VMA,
             @bitCast(isize, @ptrToInt(hart_mask)),
             @bitCast(isize, start),
             @bitCast(isize, size),
-            error{NOT_SUPPORTED},
-        ) catch unreachable;
+        );
     }
 
     pub fn remoteSFenceVMAWithASIDAvailable() bool {
@@ -226,14 +289,25 @@ pub const legacy = struct {
     /// virtual addresses between `start` and `size`. This covers only the given ASID.
     /// The `hart_mask` is the same as described in `sendIPI`.
     pub fn remoteSFenceVMAWithASID(hart_mask: [*]const usize, start: usize, size: usize, asid: usize) void {
-        ecall.legacyFourArgsNoReturnWithError(
+        if (runtime_safety) {
+            ecall.legacyFourArgsNoReturnWithError(
+                .LEGACY_REMOTE_SFENCE_VMA_ASID,
+                @bitCast(isize, @ptrToInt(hart_mask)),
+                @bitCast(isize, start),
+                @bitCast(isize, size),
+                @bitCast(isize, asid),
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.legacyFourArgsNoReturnNoError(
             .LEGACY_REMOTE_SFENCE_VMA_ASID,
             @bitCast(isize, @ptrToInt(hart_mask)),
             @bitCast(isize, start),
             @bitCast(isize, size),
             @bitCast(isize, asid),
-            error{NOT_SUPPORTED},
-        ) catch unreachable;
+        );
     }
 
     pub fn systemShutdownAvailable() bool {
@@ -241,8 +315,12 @@ pub const legacy = struct {
     }
 
     /// Puts all the harts to shutdown state from supervisor point of view. This SBI call doesn’t return.
-    pub fn systemShutdown() noreturn {
-        ecall.legacyZeroArgsNoReturnWithError(.LEGACY_SHUTDOWN, error{NOT_SUPPORTED}) catch unreachable;
+    pub fn systemShutdown() void {
+        if (runtime_safety) {
+            ecall.legacyZeroArgsNoReturnWithError(.LEGACY_SHUTDOWN, error{NOT_SUPPORTED}) catch unreachable;
+        } else {
+            ecall.legacyZeroArgsNoReturnNoError(.LEGACY_SHUTDOWN);
+        }
         unreachable;
     }
 
@@ -263,7 +341,21 @@ pub const time = struct {
     /// it can either request a timer interrupt infinitely far into the future
     /// (i.e., `@bitCast(u64, @as(i64, -1))`), or it can instead mask the timer interrupt by clearing `sie.STIE` CSR bit.
     pub fn setTimer(time_value: u64) void {
-        ecall.oneArgs64NoReturnWithError(.TIME, @enumToInt(TIME_FID.TIME_SET_TIMER), time_value, error{NOT_SUPPORTED}) catch unreachable;
+        if (runtime_safety) {
+            ecall.oneArgs64NoReturnWithError(
+                .TIME,
+                @enumToInt(TIME_FID.TIME_SET_TIMER),
+                time_value,
+                error{NOT_SUPPORTED},
+            ) catch unreachable;
+            return;
+        }
+
+        ecall.oneArgs64NoReturnNoError(
+            .TIME,
+            @enumToInt(TIME_FID.TIME_SET_TIMER),
+            time_value,
+        );
     }
 
     const TIME_FID = enum(i32) {
@@ -308,16 +400,28 @@ pub const ipi = struct {
             },
         }
 
-        ecall.twoArgsNoReturnWithError(
+        if (runtime_safety) {
+            ecall.twoArgsNoReturnWithError(
+                .IPI,
+                @enumToInt(IPI_FID.SEND_IPI),
+                bit_mask,
+                mask_base,
+                error{ NOT_SUPPORTED, INVALID_PARAM },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+
+            return;
+        }
+
+        return ecall.twoArgsNoReturnWithError(
             .IPI,
             @enumToInt(IPI_FID.SEND_IPI),
             bit_mask,
             mask_base,
-            error{ NOT_SUPPORTED, INVALID_PARAM },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        };
+            error{INVALID_PARAM},
+        );
     }
 
     const IPI_FID = enum(i32) {
@@ -356,21 +460,37 @@ pub const rfence = struct {
             },
         }
 
-        ecall.twoArgsNoReturnWithError(
+        if (runtime_safety) {
+            ecall.twoArgsNoReturnWithError(
+                .RFENCE,
+                @enumToInt(RFENCE_FID.FENCE_I),
+                bit_mask,
+                mask_base,
+                error{ NOT_SUPPORTED, INVALID_PARAM },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+
+            return;
+        }
+
+        return ecall.twoArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.FENCE_I),
             bit_mask,
             mask_base,
-            error{ NOT_SUPPORTED, INVALID_PARAM },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        };
+            error{INVALID_PARAM},
+        );
     }
 
     /// Instructs the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
     /// virtual addresses between `start_addr` and `size`.
-    pub fn remoteSFenceVMA(hart_mask: HartMask, start_addr: usize, size: usize) error{ INVALID_PARAM, INVALID_ADDRESS }!void {
+    pub fn remoteSFenceVMA(
+        hart_mask: HartMask,
+        start_addr: usize,
+        size: usize,
+    ) error{ INVALID_PARAM, INVALID_ADDRESS }!void {
         var bit_mask: isize = undefined;
         var mask_base: isize = undefined;
 
@@ -385,24 +505,43 @@ pub const rfence = struct {
             },
         }
 
-        ecall.fourArgsNoReturnWithError(
+        if (runtime_safety) {
+            ecall.fourArgsNoReturnWithError(
+                .RFENCE,
+                @enumToInt(RFENCE_FID.SFENCE_VMA),
+                bit_mask,
+                mask_base,
+                @bitCast(isize, start_addr),
+                @bitCast(isize, size),
+                error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+
+            return;
+        }
+
+        return ecall.fourArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.SFENCE_VMA),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
             @bitCast(isize, size),
-            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        };
+            error{ INVALID_PARAM, INVALID_ADDRESS },
+        );
     }
 
     /// Instructs the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
     /// virtual addresses between `start_addr` and `size`.
     /// This covers only the given ASID.
-    pub fn remoteSFenceVMAWithASID(hart_mask: HartMask, start_addr: usize, size: usize, asid: usize) error{ INVALID_PARAM, INVALID_ADDRESS }!void {
+    pub fn remoteSFenceVMAWithASID(
+        hart_mask: HartMask,
+        start_addr: usize,
+        size: usize,
+        asid: usize,
+    ) error{ INVALID_PARAM, INVALID_ADDRESS }!void {
         var bit_mask: isize = undefined;
         var mask_base: isize = undefined;
 
@@ -417,7 +556,25 @@ pub const rfence = struct {
             },
         }
 
-        ecall.fiveArgsNoReturnWithError(
+        if (runtime_safety) {
+            ecall.fiveArgsNoReturnWithError(
+                .RFENCE,
+                @enumToInt(RFENCE_FID.SFENCE_VMA_ASID),
+                bit_mask,
+                mask_base,
+                @bitCast(isize, start_addr),
+                @bitCast(isize, size),
+                @bitCast(isize, asid),
+                error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+
+            return;
+        }
+
+        return ecall.fiveArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.SFENCE_VMA_ASID),
             bit_mask,
@@ -425,17 +582,19 @@ pub const rfence = struct {
             @bitCast(isize, start_addr),
             @bitCast(isize, size),
             @bitCast(isize, asid),
-            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        };
+            error{ INVALID_PARAM, INVALID_ADDRESS },
+        );
     }
 
     /// Instruct the remote harts to execute one or more HFENCE.GVMA instructions, covering the range of
     /// guest physical addresses between start and size only for the given VMID.
     /// This function call is only valid for harts implementing hypervisor extension.
-    pub fn remoteHFenceGVMAWithVMID(hart_mask: HartMask, start_addr: usize, size: usize, vmid: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+    pub fn remoteHFenceGVMAWithVMID(
+        hart_mask: HartMask,
+        start_addr: usize,
+        size: usize,
+        vmid: usize,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS }!void {
         var bit_mask: isize = undefined;
         var mask_base: isize = undefined;
 
@@ -450,7 +609,7 @@ pub const rfence = struct {
             },
         }
 
-        try ecall.fiveArgsNoReturnWithError(
+        return ecall.fiveArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.HFENCE_GVMA_VMID),
             bit_mask,
@@ -465,7 +624,11 @@ pub const rfence = struct {
     /// Instruct the remote harts to execute one or more HFENCE.GVMA instructions, covering the range of
     /// guest physical addresses between start and size only for all guests.
     /// This function call is only valid for harts implementing hypervisor extension.
-    pub fn remoteHFenceGVMA(hart_mask: HartMask, start_addr: usize, size: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+    pub fn remoteHFenceGVMA(
+        hart_mask: HartMask,
+        start_addr: usize,
+        size: usize,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS }!void {
         var bit_mask: isize = undefined;
         var mask_base: isize = undefined;
 
@@ -480,7 +643,7 @@ pub const rfence = struct {
             },
         }
 
-        try ecall.fourArgsNoReturnWithError(
+        return ecall.fourArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.HFENCE_GVMA),
             bit_mask,
@@ -495,7 +658,12 @@ pub const rfence = struct {
     /// guest virtual addresses between `start_addr` and `size` for the given ASID and current VMID (in hgatp CSR) of
     /// calling hart.
     /// This function call is only valid for harts implementing hypervisor extension.
-    pub fn remoteHFenceVVMAWithASID(hart_mask: HartMask, start_addr: usize, size: usize, asid: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+    pub fn remoteHFenceVVMAWithASID(
+        hart_mask: HartMask,
+        start_addr: usize,
+        size: usize,
+        asid: usize,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS }!void {
         var bit_mask: isize = undefined;
         var mask_base: isize = undefined;
 
@@ -510,7 +678,7 @@ pub const rfence = struct {
             },
         }
 
-        try ecall.fiveArgsNoReturnWithError(
+        return ecall.fiveArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.HFENCE_VVMA_ASID),
             bit_mask,
@@ -525,7 +693,11 @@ pub const rfence = struct {
     /// Instruct the remote harts to execute one or more HFENCE.VVMA instructions, covering the range of
     /// guest virtual addresses between `start_addr` and `size` for current VMID (in hgatp CSR) of calling hart.
     /// This function call is only valid for harts implementing hypervisor extension.
-    pub fn remoteHFenceVVMA(hart_mask: HartMask, start_addr: usize, size: usize) error{ INVALID_PARAM, INVALID_ADDRESS, NOT_SUPPORTED }!void {
+    pub fn remoteHFenceVVMA(
+        hart_mask: HartMask,
+        start_addr: usize,
+        size: usize,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS }!void {
         var bit_mask: isize = undefined;
         var mask_base: isize = undefined;
 
@@ -540,7 +712,7 @@ pub const rfence = struct {
             },
         }
 
-        try ecall.fourArgsNoReturnWithError(
+        return ecall.fourArgsNoReturnWithError(
             .RFENCE,
             @enumToInt(RFENCE_FID.HFENCE_VVMA),
             bit_mask,
@@ -589,18 +761,34 @@ pub const hsm = struct {
     ///
     /// The `value` parameter is a XLEN-bit value which will be set in the a1 register when the hart starts
     /// executing at `start_addr`.
-    pub fn hartStart(hartid: usize, start_addr: usize, value: usize) error{ INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED }!void {
-        ecall.threeArgsNoReturnWithError(
+    pub fn hartStart(
+        hartid: usize,
+        start_addr: usize,
+        value: usize,
+    ) error{ INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED }!void {
+        if (runtime_safety) {
+            ecall.threeArgsNoReturnWithError(
+                .HSM,
+                @enumToInt(HSM_FID.HART_START),
+                @bitCast(isize, hartid),
+                @bitCast(isize, start_addr),
+                @bitCast(isize, value),
+                error{ NOT_SUPPORTED, INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+            return;
+        }
+
+        return ecall.threeArgsNoReturnWithError(
             .HSM,
             @enumToInt(HSM_FID.HART_START),
             @bitCast(isize, hartid),
             @bitCast(isize, start_addr),
             @bitCast(isize, value),
-            error{ NOT_SUPPORTED, INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        };
+            error{ INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED },
+        );
     }
 
     /// Request the SBI implementation to stop executing the calling hart in supervisor-mode and return it’s
@@ -608,14 +796,22 @@ pub const hsm = struct {
     /// This call is not expected to return under normal conditions.
     /// `hartStop` must be called with the supervisor-mode interrupts disabled.
     pub fn hartStop() error{FAILED}!void {
-        ecall.zeroArgsNoReturnWithError(
-            .HSM,
-            @enumToInt(HSM_FID.HART_STOP),
-            error{ NOT_SUPPORTED, FAILED },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        };
+        if (runtime_safety) {
+            ecall.zeroArgsNoReturnWithError(
+                .HSM,
+                @enumToInt(HSM_FID.HART_STOP),
+                error{ NOT_SUPPORTED, FAILED },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+        } else {
+            try ecall.zeroArgsNoReturnWithError(
+                .HSM,
+                @enumToInt(HSM_FID.HART_STOP),
+                error{FAILED},
+            );
+        }
         unreachable;
     }
 
@@ -624,15 +820,24 @@ pub const hsm = struct {
     /// The harts may transition HSM states at any time due to any concurrent `hartStart`, `hartStop` or `hartSuspend` calls,
     /// the return value from this function may not represent the actual state of the hart at the time of return value verification.
     pub fn hartStatus(hartid: usize) error{INVALID_PARAM}!State {
-        return @intToEnum(State, ecall.oneArgsWithReturnWithError(
+        if (runtime_safety) {
+            return @intToEnum(State, ecall.oneArgsWithReturnWithError(
+                .HSM,
+                @enumToInt(HSM_FID.HART_GET_STATUS),
+                @bitCast(isize, hartid),
+                error{ NOT_SUPPORTED, INVALID_PARAM },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            });
+        }
+
+        return @intToEnum(State, try ecall.oneArgsWithReturnWithError(
             .HSM,
             @enumToInt(HSM_FID.HART_GET_STATUS),
             @bitCast(isize, hartid),
-            error{ NOT_SUPPORTED, INVALID_PARAM },
-        ) catch |err| switch (err) {
-            error.NOT_SUPPORTED => unreachable,
-            else => |e| return e,
-        });
+            error{INVALID_PARAM},
+        ));
     }
 
     /// Request the SBI implementation to put the calling hart in a platform specific suspend (or low power)
@@ -660,14 +865,18 @@ pub const hsm = struct {
     ///
     /// The `value` parameter is a XLEN-bit value which will be set in the a1 register when the hart resumes execution at
     /// `resume_addr` after a non-retentive suspend.
-    pub fn hartSuspend(suspend_type: SuspendType, resume_addr: usize, value: usize) error{ INVALID_PARAM, NOT_SUPPORTED, INVALID_ADDRESS, FAILED }!void {
-        try ecall.threeArgsNoReturnWithError(
+    pub fn hartSuspend(
+        suspend_type: SuspendType,
+        resume_addr: usize,
+        value: usize,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS, FAILED }!void {
+        return ecall.threeArgsNoReturnWithError(
             .HSM,
             @enumToInt(HSM_FID.HART_SUSPEND),
             @enumToInt(suspend_type),
             @bitCast(isize, resume_addr),
             @bitCast(isize, value),
-            error{ INVALID_PARAM, NOT_SUPPORTED, INVALID_ADDRESS, FAILED },
+            error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS, FAILED },
         );
     }
 
@@ -735,13 +944,16 @@ pub const reset = struct {
     /// When supervisor software is running inside a virtual machine, the SBI implementation is a hypervisor.
     /// The shutdown, cold reboot and warm reboot will behave functionally the same as the native case but
     /// might not result in any physical power changes.
-    pub fn systemReset(reset_type: ResetType, reset_reason: ResetReason) error{ INVALID_PARAM, NOT_SUPPORTED, FAILED }!void {
+    pub fn systemReset(
+        reset_type: ResetType,
+        reset_reason: ResetReason,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM, FAILED }!void {
         try ecall.twoArgsNoReturnWithError(
             .SRST,
             @enumToInt(SRST_FID.RESET),
             @enumToInt(reset_type),
             @enumToInt(reset_reason),
-            error{ INVALID_PARAM, NOT_SUPPORTED, FAILED },
+            error{ NOT_SUPPORTED, INVALID_PARAM, FAILED },
         );
         unreachable;
     }
@@ -775,7 +987,7 @@ const ecall = struct {
             : [err] "={x10}" (err),
             : [eid] "{x17}" (@enumToInt(eid)),
               [fid] "{x16}" (fid),
-            : "memory", "x11"
+            : "x11"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
@@ -786,7 +998,7 @@ const ecall = struct {
             : [value] "={x11}" (-> isize),
             : [eid] "{x17}" (@enumToInt(eid)),
               [fid] "{x16}" (fid),
-            : "memory", "x10"
+            : "x10"
         );
     }
 
@@ -799,7 +1011,6 @@ const ecall = struct {
             : [eid] "{x17}" (@enumToInt(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
-            : "memory"
         );
         if (err == .SUCCESS) return value;
         return err.toError(ErrorT);
@@ -811,8 +1022,29 @@ const ecall = struct {
             : [eid] "{x17}" (@enumToInt(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
-            : "memory", "x10"
+            : "x10"
         );
+    }
+
+    inline fn oneArgs64NoReturnNoError(eid: EID, fid: i32, a0: u64) void {
+        if (is_64) {
+            asm volatile ("ecall"
+                :
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (a0),
+                : "x11", "x10"
+            );
+        } else {
+            asm volatile ("ecall"
+                :
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
+                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                : "x11", "x10"
+            );
+        }
     }
 
     inline fn oneArgs64NoReturnWithError(eid: EID, fid: i32, a0: u64, comptime ErrorT: type) ErrorT!void {
@@ -823,7 +1055,7 @@ const ecall = struct {
                 : [eid] "{x17}" (@enumToInt(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
-                : "memory", "x11"
+                : "x11"
             );
         } else {
             asm volatile ("ecall"
@@ -832,12 +1064,31 @@ const ecall = struct {
                   [fid] "{x16}" (fid),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
-                : "memory", "x11"
+                : "x11"
             );
         }
 
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
+    }
+
+    inline fn legacyOneArgs64NoReturnNoError(eid: EID, a0: u64) void {
+        if (is_64) {
+            asm volatile ("ecall"
+                :
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [arg0] "{x10}" (a0),
+                : "x10"
+            );
+        } else {
+            asm volatile ("ecall"
+                :
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
+                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                : "x10"
+            );
+        }
     }
 
     inline fn legacyOneArgs64NoReturnWithError(eid: EID, a0: u64, comptime ErrorT: type) ErrorT!void {
@@ -847,7 +1098,6 @@ const ecall = struct {
                 : [err] "={x10}" (err),
                 : [eid] "{x17}" (@enumToInt(eid)),
                   [arg0] "{x10}" (a0),
-                : "memory"
             );
         } else {
             asm volatile ("ecall"
@@ -855,12 +1105,20 @@ const ecall = struct {
                 : [eid] "{x17}" (@enumToInt(eid)),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
-                : "memory"
             );
         }
 
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
+    }
+
+    inline fn legacyOneArgsNoReturnNoError(eid: EID, a0: isize) void {
+        asm volatile ("ecall"
+            :
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+            : "x10"
+        );
     }
 
     inline fn legacyOneArgsNoReturnWithError(eid: EID, a0: isize, comptime ErrorT: type) ErrorT!void {
@@ -869,11 +1127,20 @@ const ecall = struct {
             : [err] "={x10}" (err),
             : [eid] "{x17}" (@enumToInt(eid)),
               [arg0] "{x10}" (a0),
-            : "memory"
         );
-
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
+    }
+
+    inline fn legacyThreeArgsNoReturnNoError(eid: EID, a0: isize, a1: isize, a2: isize) void {
+        asm volatile ("ecall"
+            :
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+            : "x10"
+        );
     }
 
     inline fn legacyThreeArgsNoReturnWithError(eid: EID, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!void {
@@ -884,7 +1151,6 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
-            : "memory"
         );
 
         if (err == .SUCCESS) return;
@@ -900,11 +1166,22 @@ const ecall = struct {
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
               [arg3] "{x13}" (a3),
-            : "memory"
         );
 
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
+    }
+
+    inline fn legacyFourArgsNoReturnNoError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize) void {
+        asm volatile ("ecall"
+            :
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+              [arg3] "{x13}" (a3),
+            : "x10"
+        );
     }
 
     inline fn legacyZeroArgsWithReturnWithError(eid: EID, comptime ErrorT: type) ErrorT!isize {
@@ -912,7 +1189,6 @@ const ecall = struct {
         asm volatile ("ecall"
             : [val] "={x10}" (val),
             : [eid] "{x17}" (@enumToInt(eid)),
-            : "memory"
         );
         if (val >= 0) return val;
         return @intToEnum(ErrorCode, val).toError(ErrorT);
@@ -923,10 +1199,17 @@ const ecall = struct {
         asm volatile ("ecall"
             : [err] "={x10}" (err),
             : [eid] "{x17}" (@enumToInt(eid)),
-            : "memory"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
+    }
+
+    inline fn legacyZeroArgsNoReturnNoError(eid: EID) void {
+        asm volatile ("ecall"
+            :
+            : [eid] "{x17}" (@enumToInt(eid)),
+            : "x10"
+        );
     }
 
     inline fn twoArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, comptime ErrorT: type) ErrorT!void {
@@ -937,7 +1220,7 @@ const ecall = struct {
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
-            : "memory", "x11"
+            : "x11"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
@@ -953,7 +1236,7 @@ const ecall = struct {
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
               [arg3] "{x13}" (a3),
-            : "memory", "x11"
+            : "x11"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
@@ -970,7 +1253,7 @@ const ecall = struct {
               [arg2] "{x12}" (a2),
               [arg3] "{x13}" (a3),
               [arg4] "{x14}" (a4),
-            : "memory", "x11"
+            : "x11"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
@@ -985,7 +1268,7 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
-            : "memory", "x11"
+            : "x11"
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
@@ -1002,7 +1285,6 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
-            : "memory"
         );
         if (err == .SUCCESS) return value;
         return err.toError(ErrorT);
