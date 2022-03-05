@@ -6,8 +6,6 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
     const target = std.zig.CrossTarget{ .cpu_arch = .riscv64 };
 
-    b.enable_qemu = true;
-
     const tests = b.addTest("sbi.zig");
     tests.setBuildMode(mode);
     tests.setTarget(target);
