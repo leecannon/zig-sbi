@@ -101,9 +101,9 @@ pub const base = struct {
         _reserved: u1,
         _: if (is_64) u32 else u0,
 
-        test {
-            try std.testing.expectEqual(@sizeOf(usize), @sizeOf(SpecVersion));
-            try std.testing.expectEqual(@bitSizeOf(usize), @bitSizeOf(SpecVersion));
+        comptime {
+            std.debug.assert(@sizeOf(usize) == @sizeOf(SpecVersion));
+            std.debug.assert(@bitSizeOf(usize) == @bitSizeOf(SpecVersion));
         }
 
         comptime {
@@ -368,12 +368,12 @@ pub const time = struct {
 };
 
 pub const HartMask = union(enum) {
-    /// all available harts must be considered
+    /// all available ids must be considered
     all,
     mask: struct {
-        /// a scalar bit-vector containing hartids
-        harts: usize,
-        /// he starting hartid from which bit-vector must be computed
+        /// a scalar bit-vector containing ids
+        mask: usize,
+        /// the starting id from which bit-vector must be computed
         base: usize,
     },
 };
@@ -395,7 +395,7 @@ pub const ipi = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -455,7 +455,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -500,7 +500,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -551,7 +551,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -604,7 +604,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -638,7 +638,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -673,7 +673,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -707,7 +707,7 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.harts);
+                bit_mask = @bitCast(isize, mask.mask);
                 mask_base = @bitCast(isize, mask.base);
             },
         }
@@ -873,7 +873,7 @@ pub const hsm = struct {
         return ecall.threeArgsNoReturnWithError(
             .HSM,
             @enumToInt(HSM_FID.HART_SUSPEND),
-            @enumToInt(suspend_type),
+            @intCast(isize, @enumToInt(suspend_type)),
             @bitCast(isize, resume_addr),
             @bitCast(isize, value),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS, FAILED },
@@ -951,8 +951,8 @@ pub const reset = struct {
         try ecall.twoArgsNoReturnWithError(
             .SRST,
             @enumToInt(SRST_FID.RESET),
-            @enumToInt(reset_type),
-            @enumToInt(reset_reason),
+            @intCast(isize, @enumToInt(reset_type)),
+            @intCast(isize, @enumToInt(reset_reason)),
             error{ NOT_SUPPORTED, INVALID_PARAM, FAILED },
         );
         unreachable;
@@ -980,6 +980,401 @@ pub const reset = struct {
     }
 };
 
+pub const pmu = struct {
+    pub fn available() bool {
+        return base.probeExtension(.PMU);
+    }
+
+    /// Returns the number of counters (both hardware and firmware)
+    pub fn getNumberOfCounters() usize {
+        if (runtime_safety) {
+            return @bitCast(usize, ecall.zeroArgsWithReturnWithError(
+                .PMU,
+                @enumToInt(PMU_FID.NUM_COUNTERS),
+                error{NOT_SUPPORTED},
+            ) catch unreachable);
+        }
+
+        return @bitCast(usize, ecall.zeroArgsWithReturnNoError(.PMU, @enumToInt(PMU_FID.NUM_COUNTERS)));
+    }
+
+    /// Get details about the specified counter such as underlying CSR number, width of the counter, type of
+    /// counter hardware/firmware, etc.
+    pub fn getCounterInfo(counter_index: usize) error{INVALID_PARAM}!CounterInfo {
+        if (runtime_safety) {
+            return @bitCast(CounterInfo, ecall.oneArgsWithReturnWithError(
+                .PMU,
+                @enumToInt(PMU_FID.COUNTER_GET_INFO),
+                @bitCast(isize, counter_index),
+                error{ NOT_SUPPORTED, INVALID_PARAM },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            });
+        }
+
+        return @bitCast(CounterInfo, try ecall.oneArgsWithReturnWithError(
+            .PMU,
+            @enumToInt(PMU_FID.COUNTER_GET_INFO),
+            @bitCast(isize, counter_index),
+            error{INVALID_PARAM},
+        ));
+    }
+
+    /// Find and configure a counter from a set of counters which is not started (or enabled) and can monitor
+    /// the specified event.
+    pub fn configureMatchingCounter(
+        counter_base: usize,
+        counter_mask: usize,
+        config_flags: ConfigFlags,
+        event: Event,
+    ) error{ NOT_SUPPORTED, INVALID_PARAM }!usize {
+        const event_data = event.toEventData();
+
+        return @bitCast(usize, try ecall.fiveArgsLastArg64WithReturnWithError(
+            .PMU,
+            @enumToInt(PMU_FID.COUNTER_CFG_MATCH),
+            @bitCast(isize, counter_base),
+            @bitCast(isize, counter_mask),
+            @bitCast(isize, config_flags),
+            @bitCast(isize, event_data.event_index),
+            event_data.event_data,
+            error{ NOT_SUPPORTED, INVALID_PARAM },
+        ));
+    }
+
+    /// Start or enable a set of counters on the calling HART with the specified initial value.
+    /// The `counter_mask` parameter represent the set of counters whereas the `initial_value` parameter
+    /// specifies the initial value of the counter (if `start_flags.INIT_VALUE` is set).
+    pub fn startCounters(
+        counter_base: usize,
+        counter_mask: usize,
+        start_flags: StartFlags,
+        initial_value: u64,
+    ) error{ INVALID_PARAM, ALREADY_STARTED }!void {
+        if (runtime_safety) {
+            ecall.fourArgsLastArg64NoReturnWithError(
+                .PMU,
+                @enumToInt(PMU_FID.COUNTER_START),
+                @bitCast(isize, counter_base),
+                @bitCast(isize, counter_mask),
+                @bitCast(isize, start_flags),
+                initial_value,
+                error{ NOT_SUPPORTED, INVALID_PARAM, ALREADY_STARTED },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+
+            return;
+        }
+
+        return ecall.fourArgsLastArg64NoReturnWithError(
+            .PMU,
+            @enumToInt(PMU_FID.COUNTER_START),
+            @bitCast(isize, counter_base),
+            @bitCast(isize, counter_mask),
+            @bitCast(isize, start_flags),
+            initial_value,
+            error{ INVALID_PARAM, ALREADY_STARTED },
+        );
+    }
+
+    /// Stop or disable a set of counters on the calling HART. The `counter_mask` parameter represent the set of counters.
+    pub fn stopCounters(
+        counter_base: usize,
+        counter_mask: usize,
+        stop_flags: StopFlags,
+    ) error{ INVALID_PARAM, ALREADY_STOPPED }!void {
+        if (runtime_safety) {
+            ecall.threeArgsNoReturnWithError(
+                .PMU,
+                @enumToInt(PMU_FID.COUNTER_START),
+                @bitCast(isize, counter_base),
+                @bitCast(isize, counter_mask),
+                @bitCast(isize, stop_flags),
+                error{ NOT_SUPPORTED, INVALID_PARAM, ALREADY_STOPPED },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            };
+
+            return;
+        }
+
+        return ecall.threeArgsNoReturnWithError(
+            .PMU,
+            @enumToInt(PMU_FID.COUNTER_START),
+            @bitCast(isize, counter_base),
+            @bitCast(isize, counter_mask),
+            @bitCast(isize, stop_flags),
+            error{ INVALID_PARAM, ALREADY_STOPPED },
+        );
+    }
+
+    /// Provide the current value of a firmware counter.
+    pub fn readFirmwareCounter(counter_index: usize) error{INVALID_PARAM}!usize {
+        if (runtime_safety) {
+            return @bitCast(usize, ecall.oneArgsWithReturnWithError(
+                .PMU,
+                @enumToInt(PMU_FID.COUNTER_FW_READ),
+                @bitCast(isize, counter_index),
+                error{ NOT_SUPPORTED, INVALID_PARAM },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            });
+        }
+
+        return @bitCast(usize, try ecall.oneArgsWithReturnWithError(
+            .PMU,
+            @enumToInt(PMU_FID.COUNTER_FW_READ),
+            @bitCast(isize, counter_index),
+            error{INVALID_PARAM},
+        ));
+    }
+
+    pub const Event = union(EventType) {
+        HW: HW_EVENT,
+        HW_CACHE: HW_CACHE_EVENT,
+        HW_RAW: if (is_64) u48 else u32,
+        FW: FW_EVENT,
+
+        pub const EventType = enum(u4) {
+            HW = 0x0,
+            HW_CACHE = 0x1,
+            HW_RAW = 0x2,
+            FW = 0xf,
+        };
+
+        pub const HW_EVENT = enum(u16) {
+            /// Event for each CPU cycle
+            CPU_CYCLES = 1,
+            /// Event for each completed instruction
+            INSTRUCTIONS = 2,
+            /// Event for cache hit
+            CACHE_REFERENCES = 3,
+            /// Event for cache miss
+            CACHE_MISSES = 4,
+            /// Event for a branch instruction
+            BRANCH_INSTRUCTIONS = 5,
+            /// Event for a branch misprediction
+            BRANCH_MISSES = 6,
+            /// Event for each BUS cycle
+            BUS_CYCLES = 7,
+            /// Event for a stalled cycle in microarchitecture frontend
+            STALLED_CYCLES_FRONTEND = 8,
+            /// Event for a stalled cycle in microarchitecture backend
+            STALLED_CYCLES_BACKEND = 9,
+            /// Event for each reference CPU cycle
+            REF_CPU_CYCLES = 10,
+
+            _,
+        };
+
+        pub const HW_CACHE_EVENT = packed struct {
+            result_id: ResultId,
+            op_id: OpId,
+            cache_id: CacheId,
+
+            pub const ResultId = enum(u1) {
+                ACCESS = 0,
+                MISS = 1,
+            };
+
+            pub const OpId = enum(u2) {
+                READ = 0,
+                WRITE = 1,
+                PREFETCH = 2,
+            };
+
+            pub const CacheId = enum(u13) {
+                /// Level1 data cache event
+                L1D = 0,
+                /// Level1 instruction cache event
+                L1I = 1,
+                /// Last level cache event
+                LL = 2,
+                /// Data TLB event
+                DTLB = 3,
+                /// Instruction TLB event
+                ITLB = 4,
+                /// Branch predictor unit event
+                BPU = 5,
+                /// NUMA node cache event
+                NODE = 6,
+            };
+
+            comptime {
+                std.debug.assert(@sizeOf(u16) == @sizeOf(HW_CACHE_EVENT));
+                std.debug.assert(@bitSizeOf(u16) == @bitSizeOf(HW_CACHE_EVENT));
+            }
+
+            comptime {
+                std.testing.refAllDecls(@This());
+            }
+        };
+
+        pub const FW_EVENT = enum(u16) {
+            MISALIGNED_LOAD = 0,
+            MISALIGNED_STORE = 1,
+            ACCESS_LOAD = 2,
+            ACCESS_STORE = 3,
+            ILLEGAL_INSN = 4,
+            SET_TIMER = 5,
+            IPI_SENT = 6,
+            IPI_RECVD = 7,
+            FENCE_I_SENT = 8,
+            FENCE_I_RECVD = 9,
+            SFENCE_VMA_SENT = 10,
+            SFENCE_VMA_RCVD = 11,
+            SFENCE_VMA_ASID_SENT = 12,
+            SFENCE_VMA_ASID_RCVD = 13,
+            HFENCE_GVMA_SENT = 14,
+            HFENCE_GVMA_RCVD = 15,
+            HFENCE_GVMA_VMID_SENT = 16,
+            HFENCE_GVMA_VMID_RCVD = 17,
+            HFENCE_VVMA_SENT = 18,
+            HFENCE_VVMA_RCVD = 19,
+            HFENCE_VVMA_ASID_SENT = 20,
+            HFENCE_VVMA_ASID_RCVD = 21,
+
+            _,
+        };
+
+        fn toEventData(self: Event) EventData {
+            return switch (self) {
+                .HW => |hw| EventData{
+                    .event_index = @as(u20, @enumToInt(hw)) | (@as(u20, @enumToInt(EventType.HW)) << 16),
+                    .event_data = 0,
+                },
+                .HW_CACHE => |hw_cache| EventData{
+                    .event_index = @as(u20, @bitCast(u16, hw_cache)) | (@as(u20, @enumToInt(EventType.HW_CACHE)) << 16),
+                    .event_data = 0,
+                },
+                .HW_RAW => |hw_raw| EventData{
+                    .event_index = @as(u20, @enumToInt(EventType.HW_RAW)) << 16,
+                    .event_data = hw_raw,
+                },
+                .FW => |fw| EventData{
+                    .event_index = @as(u20, @enumToInt(fw)) | (@as(u20, @enumToInt(EventType.FW)) << 16),
+                    .event_data = 0,
+                },
+            };
+        }
+
+        const EventData = struct {
+            event_index: usize,
+            event_data: u64,
+        };
+
+        comptime {
+            std.testing.refAllDecls(@This());
+        }
+    };
+
+    pub const ConfigFlags = packed struct {
+        /// Skip the counter matching
+        SKIP_MATCH: bool = false,
+        /// Clear (or zero) the counter value in counter configuration
+        CLEAR_VALUE: bool = false,
+        /// Start the counter after configuring a matching counter
+        AUTO_START: bool = false,
+        /// Event counting inhibited in VU-mode
+        SET_VUINH: bool = false,
+        /// Event counting inhibited in VS-mode
+        SET_VSINH: bool = false,
+        /// Event counting inhibited in U-mode
+        SET_UINH: bool = false,
+        /// Event counting inhibited in S-mode
+        SET_SINH: bool = false,
+        /// Event counting inhibited in M-mode
+        SET_MINH: bool = false,
+
+        // Packed structs in zig stage1 are so annoying
+        _reserved1: u8 = 0,
+        _reserved2: u16 = 0,
+        _reserved3: if (is_64) u32 else u0 = 0,
+
+        comptime {
+            std.debug.assert(@sizeOf(usize) == @sizeOf(ConfigFlags));
+            std.debug.assert(@bitSizeOf(usize) == @bitSizeOf(ConfigFlags));
+        }
+
+        comptime {
+            std.testing.refAllDecls(@This());
+        }
+    };
+
+    pub const StartFlags = packed struct {
+        /// Set the value of counters based on the `initial_value` parameter
+        INIT_VALUE: bool = false,
+
+        _reserved: if (is_64) u63 else u31 = 0,
+
+        comptime {
+            std.debug.assert(@sizeOf(usize) == @sizeOf(StartFlags));
+            std.debug.assert(@bitSizeOf(usize) == @bitSizeOf(StartFlags));
+        }
+
+        comptime {
+            std.testing.refAllDecls(@This());
+        }
+    };
+
+    pub const StopFlags = packed struct {
+        /// Reset the counter to event mapping.
+        RESET: bool = false,
+
+        _reserved: if (is_64) u63 else u31 = 0,
+
+        comptime {
+            std.debug.assert(@sizeOf(usize) == @sizeOf(StopFlags));
+            std.debug.assert(@bitSizeOf(usize) == @bitSizeOf(StopFlags));
+        }
+
+        comptime {
+            std.testing.refAllDecls(@This());
+        }
+    };
+
+    /// If `type` is `.firmware` `csr` and `width` should be ignored.
+    pub const CounterInfo = packed struct {
+        csr: u12,
+        /// Width (One less than number of bits in CSR)
+        width: u6,
+        _reserved: if (is_64) u45 else u13,
+        type: CounterType,
+
+        pub const CounterType = enum(u1) {
+            hardware = 0,
+            firmware = 1,
+        };
+
+        comptime {
+            std.debug.assert(@sizeOf(usize) == @sizeOf(CounterInfo));
+            std.debug.assert(@bitSizeOf(usize) == @bitSizeOf(CounterInfo));
+        }
+
+        comptime {
+            std.testing.refAllDecls(@This());
+        }
+    };
+
+    const PMU_FID = enum(i32) {
+        NUM_COUNTERS = 0x0,
+        COUNTER_GET_INFO = 0x1,
+        COUNTER_CFG_MATCH = 0x2,
+        COUNTER_START = 0x3,
+        COUNTER_STOP = 0x4,
+        COUNTER_FW_READ = 0x5,
+    };
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
 const ecall = struct {
     inline fn zeroArgsNoReturnWithError(eid: EID, fid: i32, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
@@ -990,6 +1385,19 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn zeroArgsWithReturnWithError(eid: EID, fid: i32, comptime ErrorT: type) ErrorT!isize {
+        var err: ErrorCode = undefined;
+        var value: isize = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+              [value] "={x11}" (value),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [fid] "{x16}" (fid),
+        );
+        if (err == .SUCCESS) return value;
         return err.toError(ErrorT);
     }
 
@@ -1226,6 +1634,46 @@ const ecall = struct {
         return err.toError(ErrorT);
     }
 
+    inline fn fourArgsLastArg64NoReturnWithError(
+        eid: EID,
+        fid: i32,
+        a0: isize,
+        a1: isize,
+        a2: isize,
+        a3: u64,
+        comptime ErrorT: type,
+    ) ErrorT!void {
+        var err: ErrorCode = undefined;
+
+        if (is_64) {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (a0),
+                  [arg1] "{x11}" (a1),
+                  [arg2] "{x12}" (a2),
+                  [arg3] "{x13}" (a3),
+                : "x11"
+            );
+        } else {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (a0),
+                  [arg1] "{x11}" (a1),
+                  [arg2] "{x12}" (a2),
+                  [arg3_lo] "{x13}" (@truncate(u32, a3)),
+                  [arg3_hi] "{x14}" (@truncate(u32, a3 >> 32)),
+                : "x11"
+            );
+        }
+
+        if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
     inline fn fourArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
@@ -1239,6 +1687,50 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
+        return err.toError(ErrorT);
+    }
+
+    inline fn fiveArgsLastArg64WithReturnWithError(
+        eid: EID,
+        fid: i32,
+        a0: isize,
+        a1: isize,
+        a2: isize,
+        a3: isize,
+        a4: u64,
+        comptime ErrorT: type,
+    ) ErrorT!isize {
+        var err: ErrorCode = undefined;
+        var value: isize = undefined;
+
+        if (is_64) {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                  [value] "={x11}" (value),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (a0),
+                  [arg1] "{x11}" (a1),
+                  [arg2] "{x12}" (a2),
+                  [arg3] "{x13}" (a3),
+                  [arg4] "{x14}" (a4),
+            );
+        } else {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                  [value] "={x11}" (value),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (a0),
+                  [arg1] "{x11}" (a1),
+                  [arg2] "{x12}" (a2),
+                  [arg3] "{x13}" (a3),
+                  [arg4_lo] "{x14}" (@truncate(u32, a4)),
+                  [arg4_hi] "{x15}" (@truncate(u32, a4 >> 32)),
+            );
+        }
+
+        if (err == .SUCCESS) return value;
         return err.toError(ErrorT);
     }
 
