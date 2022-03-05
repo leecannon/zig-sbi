@@ -2,6 +2,8 @@
 
 Zig wrapper around the RISC-V SBI specification
 
+Implements SBI Specification v1.0-rc2
+
 ## How to get
 
 ### Gyro
