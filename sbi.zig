@@ -41,9 +41,9 @@ pub const EID = enum(i32) {
     _,
 };
 
-/// The base extension is designed to be as small as possible. 
+/// The base extension is designed to be as small as possible.
 /// As such, it only contains functionality for probing which SBI extensions are available and
-/// for querying the version of the SBI. 
+/// for querying the version of the SBI.
 /// All functions in the base extension must be supported by all SBI implementations, so there
 /// are no error returns defined.
 pub const base = struct {
@@ -52,7 +52,7 @@ pub const base = struct {
         return @bitCast(SpecVersion, ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_SPEC_VERSION)));
     }
 
-    /// Returns the current SBI implementation ID, which is different for every SBI implementation. 
+    /// Returns the current SBI implementation ID, which is different for every SBI implementation.
     /// It is intended that this implementation ID allows software to probe for SBI implementation quirks
     pub fn getImplementationId() ImplementationId {
         return @intToEnum(ImplementationId, ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_ID)));
