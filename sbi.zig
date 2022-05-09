@@ -139,17 +139,10 @@ pub const legacy = struct {
     /// If the supervisor wishes to clear the timer interrupt without scheduling the next timer event,
     /// it can either request a timer interrupt infinitely far into the future
     /// (i.e., `@bitCast(u64, @as(i64, -1))`), or it can instead mask the timer interrupt by clearing `sie.STIE` CSR bit.
-    pub fn setTimer(time_value: u64) void {
-        if (runtime_safety) {
-            ecall.legacyOneArgs64NoReturnWithError(
-                .LEGACY_SET_TIMER,
-                time_value,
-                error{NOT_SUPPORTED},
-            ) catch unreachable;
-            return;
-        }
-
-        ecall.legacyOneArgs64NoReturnNoError(.LEGACY_SET_TIMER, time_value);
+    ///
+    /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
+    pub fn setTimer(time_value: u64) ImplementationDefinedError {
+        return ecall.legacyOneArgs64NoReturnWithRawError(.LEGACY_SET_TIMER, time_value);
     }
 
     pub fn consolePutCharAvailable() bool {
@@ -160,17 +153,10 @@ pub const legacy = struct {
     /// Unlike `consoleGetChar`, this SBI call will block if there remain any pending characters to be
     /// transmitted or if the receiving terminal is not yet ready to receive the byte.
     /// However, if the console doesn’t exist at all, then the character is thrown away
-    pub fn consolePutChar(char: u8) void {
-        if (runtime_safety) {
-            ecall.legacyOneArgsNoReturnWithError(
-                .LEGACY_CONSOLE_PUTCHAR,
-                char,
-                error{NOT_SUPPORTED},
-            ) catch unreachable;
-            return;
-        }
-
-        ecall.legacyOneArgsNoReturnNoError(.LEGACY_CONSOLE_PUTCHAR, char);
+    ///
+    /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
+    pub fn consolePutChar(char: u8) ImplementationDefinedError {
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_CONSOLE_PUTCHAR, char);
     }
 
     pub fn consoleGetCharAvailable() bool {
@@ -222,17 +208,10 @@ pub const legacy = struct {
     /// `hart_mask` is a virtual address that points to a bit-vector of harts. The bit vector is represented as a
     /// sequence of `usize` whose length equals the number of harts in the system divided by the number of bits in a `usize`,
     /// rounded up to the next integer.
-    pub fn sendIPI(hart_mask: [*]const usize) void {
-        if (runtime_safety) {
-            ecall.legacyOneArgsNoReturnWithError(
-                .LEGACY_SEND_IPI,
-                @bitCast(isize, @ptrToInt(hart_mask)),
-                error{NOT_SUPPORTED},
-            ) catch unreachable;
-            return;
-        }
-
-        ecall.legacyOneArgsNoReturnNoError(.LEGACY_SEND_IPI, @bitCast(isize, @ptrToInt(hart_mask)));
+    ///
+    /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
+    pub fn sendIPI(hart_mask: [*]const usize) ImplementationDefinedError {
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_SEND_IPI, @bitCast(isize, @ptrToInt(hart_mask)));
     }
 
     pub fn remoteFenceIAvailable() bool {
@@ -241,17 +220,10 @@ pub const legacy = struct {
 
     /// Instructs remote harts to execute FENCE.I instruction.
     /// The `hart_mask` is the same as described in `sendIPI`.
-    pub fn remoteFenceI(hart_mask: [*]const usize) void {
-        if (runtime_safety) {
-            ecall.legacyOneArgsNoReturnWithError(
-                .LEGACY_REMOTE_FENCE_I,
-                @bitCast(isize, @ptrToInt(hart_mask)),
-                error{NOT_SUPPORTED},
-            ) catch unreachable;
-            return;
-        }
-
-        ecall.legacyOneArgsNoReturnNoError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @ptrToInt(hart_mask)));
+    ///
+    /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
+    pub fn remoteFenceI(hart_mask: [*]const usize) ImplementationDefinedError {
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @ptrToInt(hart_mask)));
     }
 
     pub fn remoteSFenceVMAAvailable() bool {
@@ -288,20 +260,10 @@ pub const legacy = struct {
     /// Instruct the remote harts to execute one or more SFENCE.VMA instructions, covering the range of
     /// virtual addresses between `start` and `size`. This covers only the given ASID.
     /// The `hart_mask` is the same as described in `sendIPI`.
-    pub fn remoteSFenceVMAWithASID(hart_mask: [*]const usize, start: usize, size: usize, asid: usize) void {
-        if (runtime_safety) {
-            ecall.legacyFourArgsNoReturnWithError(
-                .LEGACY_REMOTE_SFENCE_VMA_ASID,
-                @bitCast(isize, @ptrToInt(hart_mask)),
-                @bitCast(isize, start),
-                @bitCast(isize, size),
-                @bitCast(isize, asid),
-                error{NOT_SUPPORTED},
-            ) catch unreachable;
-            return;
-        }
-
-        ecall.legacyFourArgsNoReturnNoError(
+    ///
+    /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
+    pub fn remoteSFenceVMAWithASID(hart_mask: [*]const usize, start: usize, size: usize, asid: usize) ImplementationDefinedError {
+        return ecall.legacyFourArgsNoReturnWithRawError(
             .LEGACY_REMOTE_SFENCE_VMA_ASID,
             @bitCast(isize, @ptrToInt(hart_mask)),
             @bitCast(isize, start),
@@ -314,7 +276,9 @@ pub const legacy = struct {
         return base.probeExtension(.LEGACY_SHUTDOWN);
     }
 
-    /// Puts all the harts to shutdown state from supervisor point of view. This SBI call doesn’t return.
+    /// Puts all the harts to shutdown state from supervisor point of view.
+    ///
+    /// This SBI call doesn't return irrespective whether it succeeds or fails.
     pub fn systemShutdown() void {
         if (runtime_safety) {
             ecall.legacyZeroArgsNoReturnWithError(.LEGACY_SHUTDOWN, error{NOT_SUPPORTED}) catch unreachable;
@@ -1499,6 +1463,27 @@ const ecall = struct {
         }
     }
 
+    inline fn legacyOneArgs64NoReturnWithRawError(eid: EID, a0: u64) ImplementationDefinedError {
+        var err: ImplementationDefinedError = undefined;
+
+        if (is_64) {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [arg0] "{x10}" (a0),
+            );
+        } else {
+            asm volatile ("ecall"
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@enumToInt(eid)),
+                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
+                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+            );
+        }
+
+        return err;
+    }
+
     inline fn legacyOneArgs64NoReturnWithError(eid: EID, a0: u64, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         if (is_64) {
@@ -1527,6 +1512,16 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
             : "x10"
         );
+    }
+
+    inline fn legacyOneArgsNoReturnWithRawError(eid: EID, a0: isize) ImplementationDefinedError {
+        var err: ImplementationDefinedError = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+        );
+        return err;
     }
 
     inline fn legacyOneArgsNoReturnWithError(eid: EID, a0: isize, comptime ErrorT: type) ErrorT!void {
@@ -1563,6 +1558,20 @@ const ecall = struct {
 
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
+    }
+
+    inline fn legacyFourArgsNoReturnWithRawError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize) ImplementationDefinedError {
+        var err: ImplementationDefinedError = undefined;
+        asm volatile ("ecall"
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@enumToInt(eid)),
+              [arg0] "{x10}" (a0),
+              [arg1] "{x11}" (a1),
+              [arg2] "{x12}" (a2),
+              [arg3] "{x13}" (a3),
+        );
+
+        return err;
     }
 
     inline fn legacyFourArgsNoReturnWithError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize, comptime ErrorT: type) ErrorT!void {
@@ -1785,6 +1794,12 @@ const ecall = struct {
     comptime {
         std.testing.refAllDecls(@This());
     }
+};
+
+pub const ImplementationDefinedError = enum(isize) {
+    SUCCESS = 0,
+
+    _,
 };
 
 const ErrorCode = enum(isize) {

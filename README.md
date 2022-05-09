@@ -2,7 +2,7 @@
 
 Zig wrapper around the RISC-V SBI specification
 
-Implements SBI Specification v1.0-rc2
+Implements SBI Specification v1.0.0
 
 ## How to get
 
