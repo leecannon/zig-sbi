@@ -3,9 +3,6 @@ const std = @import("std");
 pub fn build(b: *std.build.Builder) void {
     b.prominent_compile_errors = true;
 
-    // TODO: https://github.com/ziglang/zig/issues/12554
-    b.use_stage1 = true;
-
     const mode = b.standardReleaseOptions();
     const target_32 = std.zig.CrossTarget{ .cpu_arch = .riscv32, .os_tag = .freestanding };
     const target_64 = std.zig.CrossTarget{ .cpu_arch = .riscv64, .os_tag = .freestanding };
