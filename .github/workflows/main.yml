@@ -12,21 +12,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  CI:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: goto-bus-stop/setup-zig@v1
+      - uses: goto-bus-stop/setup-zig@v2
         with:
           version: master
       
-      - name: build
+      - name: Lint
+        run: zig fmt --check --ast-check **.zig
+
+      - name: Test
         run: zig build test
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: goto-bus-stop/setup-zig@v1
-        with:
-          version: master
-      - run: zig fmt --check --ast-check **.zig
