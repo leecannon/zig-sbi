@@ -1,8 +1,6 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    b.prominent_compile_errors = true;
-
     const optimize = b.standardOptimizeOption(.{});
     const target_32 = std.zig.CrossTarget{ .cpu_arch = .riscv32, .os_tag = .freestanding };
     const target_64 = std.zig.CrossTarget{ .cpu_arch = .riscv64, .os_tag = .freestanding };
