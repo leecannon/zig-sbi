@@ -49,39 +49,39 @@ pub const EID = enum(i32) {
 pub const base = struct {
     /// Returns the current SBI specification version.
     pub fn getSpecVersion() SpecVersion {
-        return @bitCast(SpecVersion, ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_SPEC_VERSION)));
+        return @bitCast(SpecVersion, ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_SPEC_VERSION)));
     }
 
     /// Returns the current SBI implementation ID, which is different for every SBI implementation.
     /// It is intended that this implementation ID allows software to probe for SBI implementation quirks
     pub fn getImplementationId() ImplementationId {
-        return @intToEnum(ImplementationId, ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_ID)));
+        return @enumFromInt(ImplementationId, ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_IMP_ID)));
     }
 
     /// Returns the current SBI implementation version.
     /// The encoding of this version number is specific to the SBI implementation.
     pub fn getImplementationVersion() isize {
-        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_IMP_VERSION));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_IMP_VERSION));
     }
 
     /// Returns false if the given SBI extension ID (EID) is not available, or true if it is available.
     pub fn probeExtension(eid: EID) bool {
-        return ecall.oneArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.PROBE_EXT), @enumToInt(eid)) != 0;
+        return ecall.oneArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.PROBE_EXT), @intFromEnum(eid)) != 0;
     }
 
     /// Return a value that is legal for the `mvendorid` CSR and 0 is always a legal value for this CSR.
     pub fn machineVendorId() isize {
-        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MVENDORID));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_MVENDORID));
     }
 
     /// Return a value that is legal for the `marchid` CSR and 0 is always a legal value for this CSR.
     pub fn machineArchId() isize {
-        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MARCHID));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_MARCHID));
     }
 
     /// Return a value that is legal for the `mimpid` CSR and 0 is always a legal value for this CSR.
     pub fn machineImplementationId() isize {
-        return ecall.zeroArgsWithReturnNoError(.BASE, @enumToInt(BASE_FID.GET_MIMPID));
+        return ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_MIMPID));
     }
 
     pub const ImplementationId = enum(isize) {
@@ -211,7 +211,7 @@ pub const legacy = struct {
     ///
     /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
     pub fn sendIPI(hart_mask: [*]const usize) ImplementationDefinedError {
-        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_SEND_IPI, @bitCast(isize, @ptrToInt(hart_mask)));
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_SEND_IPI, @bitCast(isize, @intFromPtr(hart_mask)));
     }
 
     pub fn remoteFenceIAvailable() bool {
@@ -223,7 +223,7 @@ pub const legacy = struct {
     ///
     /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
     pub fn remoteFenceI(hart_mask: [*]const usize) ImplementationDefinedError {
-        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @ptrToInt(hart_mask)));
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @intFromPtr(hart_mask)));
     }
 
     pub fn remoteSFenceVMAAvailable() bool {
@@ -237,7 +237,7 @@ pub const legacy = struct {
         if (runtime_safety) {
             ecall.legacyThreeArgsNoReturnWithError(
                 .LEGACY_REMOTE_SFENCE_VMA,
-                @bitCast(isize, @ptrToInt(hart_mask)),
+                @bitCast(isize, @intFromPtr(hart_mask)),
                 @bitCast(isize, start),
                 @bitCast(isize, size),
                 error{NOT_SUPPORTED},
@@ -247,7 +247,7 @@ pub const legacy = struct {
 
         ecall.legacyThreeArgsNoReturnNoError(
             .LEGACY_REMOTE_SFENCE_VMA,
-            @bitCast(isize, @ptrToInt(hart_mask)),
+            @bitCast(isize, @intFromPtr(hart_mask)),
             @bitCast(isize, start),
             @bitCast(isize, size),
         );
@@ -265,7 +265,7 @@ pub const legacy = struct {
     pub fn remoteSFenceVMAWithASID(hart_mask: [*]const usize, start: usize, size: usize, asid: usize) ImplementationDefinedError {
         return ecall.legacyFourArgsNoReturnWithRawError(
             .LEGACY_REMOTE_SFENCE_VMA_ASID,
-            @bitCast(isize, @ptrToInt(hart_mask)),
+            @bitCast(isize, @intFromPtr(hart_mask)),
             @bitCast(isize, start),
             @bitCast(isize, size),
             @bitCast(isize, asid),
@@ -308,7 +308,7 @@ pub const time = struct {
         if (runtime_safety) {
             ecall.oneArgs64NoReturnWithError(
                 .TIME,
-                @enumToInt(TIME_FID.TIME_SET_TIMER),
+                @intFromEnum(TIME_FID.TIME_SET_TIMER),
                 time_value,
                 error{NOT_SUPPORTED},
             ) catch unreachable;
@@ -317,7 +317,7 @@ pub const time = struct {
 
         ecall.oneArgs64NoReturnNoError(
             .TIME,
-            @enumToInt(TIME_FID.TIME_SET_TIMER),
+            @intFromEnum(TIME_FID.TIME_SET_TIMER),
             time_value,
         );
     }
@@ -367,7 +367,7 @@ pub const ipi = struct {
         if (runtime_safety) {
             ecall.twoArgsNoReturnWithError(
                 .IPI,
-                @enumToInt(IPI_FID.SEND_IPI),
+                @intFromEnum(IPI_FID.SEND_IPI),
                 bit_mask,
                 mask_base,
                 error{ NOT_SUPPORTED, INVALID_PARAM },
@@ -381,7 +381,7 @@ pub const ipi = struct {
 
         return ecall.twoArgsNoReturnWithError(
             .IPI,
-            @enumToInt(IPI_FID.SEND_IPI),
+            @intFromEnum(IPI_FID.SEND_IPI),
             bit_mask,
             mask_base,
             error{INVALID_PARAM},
@@ -427,7 +427,7 @@ pub const rfence = struct {
         if (runtime_safety) {
             ecall.twoArgsNoReturnWithError(
                 .RFENCE,
-                @enumToInt(RFENCE_FID.FENCE_I),
+                @intFromEnum(RFENCE_FID.FENCE_I),
                 bit_mask,
                 mask_base,
                 error{ NOT_SUPPORTED, INVALID_PARAM },
@@ -441,7 +441,7 @@ pub const rfence = struct {
 
         return ecall.twoArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.FENCE_I),
+            @intFromEnum(RFENCE_FID.FENCE_I),
             bit_mask,
             mask_base,
             error{INVALID_PARAM},
@@ -472,7 +472,7 @@ pub const rfence = struct {
         if (runtime_safety) {
             ecall.fourArgsNoReturnWithError(
                 .RFENCE,
-                @enumToInt(RFENCE_FID.SFENCE_VMA),
+                @intFromEnum(RFENCE_FID.SFENCE_VMA),
                 bit_mask,
                 mask_base,
                 @bitCast(isize, start_addr),
@@ -488,7 +488,7 @@ pub const rfence = struct {
 
         return ecall.fourArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.SFENCE_VMA),
+            @intFromEnum(RFENCE_FID.SFENCE_VMA),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
@@ -523,7 +523,7 @@ pub const rfence = struct {
         if (runtime_safety) {
             ecall.fiveArgsNoReturnWithError(
                 .RFENCE,
-                @enumToInt(RFENCE_FID.SFENCE_VMA_ASID),
+                @intFromEnum(RFENCE_FID.SFENCE_VMA_ASID),
                 bit_mask,
                 mask_base,
                 @bitCast(isize, start_addr),
@@ -540,7 +540,7 @@ pub const rfence = struct {
 
         return ecall.fiveArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.SFENCE_VMA_ASID),
+            @intFromEnum(RFENCE_FID.SFENCE_VMA_ASID),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
@@ -575,7 +575,7 @@ pub const rfence = struct {
 
         return ecall.fiveArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.HFENCE_GVMA_VMID),
+            @intFromEnum(RFENCE_FID.HFENCE_GVMA_VMID),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
@@ -609,7 +609,7 @@ pub const rfence = struct {
 
         return ecall.fourArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.HFENCE_GVMA),
+            @intFromEnum(RFENCE_FID.HFENCE_GVMA),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
@@ -644,7 +644,7 @@ pub const rfence = struct {
 
         return ecall.fiveArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.HFENCE_VVMA_ASID),
+            @intFromEnum(RFENCE_FID.HFENCE_VVMA_ASID),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
@@ -678,7 +678,7 @@ pub const rfence = struct {
 
         return ecall.fourArgsNoReturnWithError(
             .RFENCE,
-            @enumToInt(RFENCE_FID.HFENCE_VVMA),
+            @intFromEnum(RFENCE_FID.HFENCE_VVMA),
             bit_mask,
             mask_base,
             @bitCast(isize, start_addr),
@@ -733,7 +733,7 @@ pub const hsm = struct {
         if (runtime_safety) {
             ecall.threeArgsNoReturnWithError(
                 .HSM,
-                @enumToInt(HSM_FID.HART_START),
+                @intFromEnum(HSM_FID.HART_START),
                 @bitCast(isize, hartid),
                 @bitCast(isize, start_addr),
                 @bitCast(isize, value),
@@ -747,7 +747,7 @@ pub const hsm = struct {
 
         return ecall.threeArgsNoReturnWithError(
             .HSM,
-            @enumToInt(HSM_FID.HART_START),
+            @intFromEnum(HSM_FID.HART_START),
             @bitCast(isize, hartid),
             @bitCast(isize, start_addr),
             @bitCast(isize, value),
@@ -763,7 +763,7 @@ pub const hsm = struct {
         if (runtime_safety) {
             ecall.zeroArgsNoReturnWithError(
                 .HSM,
-                @enumToInt(HSM_FID.HART_STOP),
+                @intFromEnum(HSM_FID.HART_STOP),
                 error{ NOT_SUPPORTED, FAILED },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -772,7 +772,7 @@ pub const hsm = struct {
         } else {
             try ecall.zeroArgsNoReturnWithError(
                 .HSM,
-                @enumToInt(HSM_FID.HART_STOP),
+                @intFromEnum(HSM_FID.HART_STOP),
                 error{FAILED},
             );
         }
@@ -785,9 +785,9 @@ pub const hsm = struct {
     /// the return value from this function may not represent the actual state of the hart at the time of return value verification.
     pub fn hartStatus(hartid: usize) error{INVALID_PARAM}!State {
         if (runtime_safety) {
-            return @intToEnum(State, ecall.oneArgsWithReturnWithError(
+            return @enumFromInt(State, ecall.oneArgsWithReturnWithError(
                 .HSM,
-                @enumToInt(HSM_FID.HART_GET_STATUS),
+                @intFromEnum(HSM_FID.HART_GET_STATUS),
                 @bitCast(isize, hartid),
                 error{ NOT_SUPPORTED, INVALID_PARAM },
             ) catch |err| switch (err) {
@@ -796,9 +796,9 @@ pub const hsm = struct {
             });
         }
 
-        return @intToEnum(State, try ecall.oneArgsWithReturnWithError(
+        return @enumFromInt(State, try ecall.oneArgsWithReturnWithError(
             .HSM,
-            @enumToInt(HSM_FID.HART_GET_STATUS),
+            @intFromEnum(HSM_FID.HART_GET_STATUS),
             @bitCast(isize, hartid),
             error{INVALID_PARAM},
         ));
@@ -836,8 +836,8 @@ pub const hsm = struct {
     ) error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS, FAILED }!void {
         return ecall.threeArgsNoReturnWithError(
             .HSM,
-            @enumToInt(HSM_FID.HART_SUSPEND),
-            @intCast(isize, @enumToInt(suspend_type)),
+            @intFromEnum(HSM_FID.HART_SUSPEND),
+            @intCast(isize, @intFromEnum(suspend_type)),
             @bitCast(isize, resume_addr),
             @bitCast(isize, value),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS, FAILED },
@@ -914,9 +914,9 @@ pub const reset = struct {
     ) error{ NOT_SUPPORTED, INVALID_PARAM, FAILED }!void {
         try ecall.twoArgsNoReturnWithError(
             .SRST,
-            @enumToInt(SRST_FID.RESET),
-            @intCast(isize, @enumToInt(reset_type)),
-            @intCast(isize, @enumToInt(reset_reason)),
+            @intFromEnum(SRST_FID.RESET),
+            @intCast(isize, @intFromEnum(reset_type)),
+            @intCast(isize, @intFromEnum(reset_reason)),
             error{ NOT_SUPPORTED, INVALID_PARAM, FAILED },
         );
         unreachable;
@@ -954,12 +954,12 @@ pub const pmu = struct {
         if (runtime_safety) {
             return @bitCast(usize, ecall.zeroArgsWithReturnWithError(
                 .PMU,
-                @enumToInt(PMU_FID.NUM_COUNTERS),
+                @intFromEnum(PMU_FID.NUM_COUNTERS),
                 error{NOT_SUPPORTED},
             ) catch unreachable);
         }
 
-        return @bitCast(usize, ecall.zeroArgsWithReturnNoError(.PMU, @enumToInt(PMU_FID.NUM_COUNTERS)));
+        return @bitCast(usize, ecall.zeroArgsWithReturnNoError(.PMU, @intFromEnum(PMU_FID.NUM_COUNTERS)));
     }
 
     /// Get details about the specified counter such as underlying CSR number, width of the counter, type of
@@ -968,7 +968,7 @@ pub const pmu = struct {
         if (runtime_safety) {
             return @bitCast(CounterInfo, ecall.oneArgsWithReturnWithError(
                 .PMU,
-                @enumToInt(PMU_FID.COUNTER_GET_INFO),
+                @intFromEnum(PMU_FID.COUNTER_GET_INFO),
                 @bitCast(isize, counter_index),
                 error{ NOT_SUPPORTED, INVALID_PARAM },
             ) catch |err| switch (err) {
@@ -979,7 +979,7 @@ pub const pmu = struct {
 
         return @bitCast(CounterInfo, try ecall.oneArgsWithReturnWithError(
             .PMU,
-            @enumToInt(PMU_FID.COUNTER_GET_INFO),
+            @intFromEnum(PMU_FID.COUNTER_GET_INFO),
             @bitCast(isize, counter_index),
             error{INVALID_PARAM},
         ));
@@ -997,7 +997,7 @@ pub const pmu = struct {
 
         return @bitCast(usize, try ecall.fiveArgsLastArg64WithReturnWithError(
             .PMU,
-            @enumToInt(PMU_FID.COUNTER_CFG_MATCH),
+            @intFromEnum(PMU_FID.COUNTER_CFG_MATCH),
             @bitCast(isize, counter_base),
             @bitCast(isize, counter_mask),
             @bitCast(isize, config_flags),
@@ -1019,7 +1019,7 @@ pub const pmu = struct {
         if (runtime_safety) {
             ecall.fourArgsLastArg64NoReturnWithError(
                 .PMU,
-                @enumToInt(PMU_FID.COUNTER_START),
+                @intFromEnum(PMU_FID.COUNTER_START),
                 @bitCast(isize, counter_base),
                 @bitCast(isize, counter_mask),
                 @bitCast(isize, start_flags),
@@ -1035,7 +1035,7 @@ pub const pmu = struct {
 
         return ecall.fourArgsLastArg64NoReturnWithError(
             .PMU,
-            @enumToInt(PMU_FID.COUNTER_START),
+            @intFromEnum(PMU_FID.COUNTER_START),
             @bitCast(isize, counter_base),
             @bitCast(isize, counter_mask),
             @bitCast(isize, start_flags),
@@ -1053,7 +1053,7 @@ pub const pmu = struct {
         if (runtime_safety) {
             ecall.threeArgsNoReturnWithError(
                 .PMU,
-                @enumToInt(PMU_FID.COUNTER_START),
+                @intFromEnum(PMU_FID.COUNTER_START),
                 @bitCast(isize, counter_base),
                 @bitCast(isize, counter_mask),
                 @bitCast(isize, stop_flags),
@@ -1068,7 +1068,7 @@ pub const pmu = struct {
 
         return ecall.threeArgsNoReturnWithError(
             .PMU,
-            @enumToInt(PMU_FID.COUNTER_START),
+            @intFromEnum(PMU_FID.COUNTER_START),
             @bitCast(isize, counter_base),
             @bitCast(isize, counter_mask),
             @bitCast(isize, stop_flags),
@@ -1081,7 +1081,7 @@ pub const pmu = struct {
         if (runtime_safety) {
             return @bitCast(usize, ecall.oneArgsWithReturnWithError(
                 .PMU,
-                @enumToInt(PMU_FID.COUNTER_FW_READ),
+                @intFromEnum(PMU_FID.COUNTER_FW_READ),
                 @bitCast(isize, counter_index),
                 error{ NOT_SUPPORTED, INVALID_PARAM },
             ) catch |err| switch (err) {
@@ -1092,7 +1092,7 @@ pub const pmu = struct {
 
         return @bitCast(usize, try ecall.oneArgsWithReturnWithError(
             .PMU,
-            @enumToInt(PMU_FID.COUNTER_FW_READ),
+            @intFromEnum(PMU_FID.COUNTER_FW_READ),
             @bitCast(isize, counter_index),
             error{INVALID_PARAM},
         ));
@@ -1209,19 +1209,19 @@ pub const pmu = struct {
         fn toEventData(self: Event) EventData {
             return switch (self) {
                 .HW => |hw| EventData{
-                    .event_index = @as(u20, @enumToInt(hw)) | (@as(u20, @enumToInt(EventType.HW)) << 16),
+                    .event_index = @as(u20, @intFromEnum(hw)) | (@as(u20, @intFromEnum(EventType.HW)) << 16),
                     .event_data = 0,
                 },
                 .HW_CACHE => |hw_cache| EventData{
-                    .event_index = @as(u20, @bitCast(u16, hw_cache)) | (@as(u20, @enumToInt(EventType.HW_CACHE)) << 16),
+                    .event_index = @as(u20, @bitCast(u16, hw_cache)) | (@as(u20, @intFromEnum(EventType.HW_CACHE)) << 16),
                     .event_data = 0,
                 },
                 .HW_RAW => |hw_raw| EventData{
-                    .event_index = @as(u20, @enumToInt(EventType.HW_RAW)) << 16,
+                    .event_index = @as(u20, @intFromEnum(EventType.HW_RAW)) << 16,
                     .event_data = hw_raw,
                 },
                 .FW => |fw| EventData{
-                    .event_index = @as(u20, @enumToInt(fw)) | (@as(u20, @enumToInt(EventType.FW)) << 16),
+                    .event_index = @as(u20, @intFromEnum(fw)) | (@as(u20, @intFromEnum(EventType.FW)) << 16),
                     .event_data = 0,
                 },
             };
@@ -1344,7 +1344,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
             : "x11"
         );
@@ -1358,7 +1358,7 @@ const ecall = struct {
         asm volatile ("ecall"
             : [err] "={x10}" (err),
               [value] "={x11}" (value),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
         );
         if (err == .SUCCESS) return value;
@@ -1368,7 +1368,7 @@ const ecall = struct {
     inline fn zeroArgsWithReturnNoError(eid: EID, fid: i32) isize {
         return asm volatile ("ecall"
             : [value] "={x11}" (-> isize),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
             : "x10"
         );
@@ -1380,7 +1380,7 @@ const ecall = struct {
         asm volatile ("ecall"
             : [err] "={x10}" (err),
               [value] "={x11}" (value),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
         );
@@ -1391,7 +1391,7 @@ const ecall = struct {
     inline fn oneArgsWithReturnNoError(eid: EID, fid: i32, a0: isize) isize {
         return asm volatile ("ecall"
             : [value] "={x11}" (-> isize),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
             : "x10"
@@ -1402,7 +1402,7 @@ const ecall = struct {
         if (is_64) {
             asm volatile ("ecall"
                 :
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
                 : "x11", "x10"
@@ -1410,7 +1410,7 @@ const ecall = struct {
         } else {
             asm volatile ("ecall"
                 :
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
@@ -1424,7 +1424,7 @@ const ecall = struct {
         if (is_64) {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
                 : "x11"
@@ -1432,7 +1432,7 @@ const ecall = struct {
         } else {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
@@ -1448,14 +1448,14 @@ const ecall = struct {
         if (is_64) {
             asm volatile ("ecall"
                 :
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [arg0] "{x10}" (a0),
                 : "x10"
             );
         } else {
             asm volatile ("ecall"
                 :
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
                 : "x10"
@@ -1469,13 +1469,13 @@ const ecall = struct {
         if (is_64) {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [arg0] "{x10}" (a0),
             );
         } else {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
             );
@@ -1489,13 +1489,13 @@ const ecall = struct {
         if (is_64) {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [arg0] "{x10}" (a0),
             );
         } else {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [arg0_lo] "{x10}" (@truncate(u32, a0)),
                   [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
             );
@@ -1508,7 +1508,7 @@ const ecall = struct {
     inline fn legacyOneArgsNoReturnNoError(eid: EID, a0: isize) void {
         asm volatile ("ecall"
             :
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
             : "x10"
         );
@@ -1518,7 +1518,7 @@ const ecall = struct {
         var err: ImplementationDefinedError = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
         );
         return err;
@@ -1528,7 +1528,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
         );
         if (err == .SUCCESS) return;
@@ -1538,7 +1538,7 @@ const ecall = struct {
     inline fn legacyThreeArgsNoReturnNoError(eid: EID, a0: isize, a1: isize, a2: isize) void {
         asm volatile ("ecall"
             :
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
@@ -1550,7 +1550,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
@@ -1564,7 +1564,7 @@ const ecall = struct {
         var err: ImplementationDefinedError = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
@@ -1578,7 +1578,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
@@ -1592,7 +1592,7 @@ const ecall = struct {
     inline fn legacyFourArgsNoReturnNoError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize) void {
         asm volatile ("ecall"
             :
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
               [arg2] "{x12}" (a2),
@@ -1605,17 +1605,17 @@ const ecall = struct {
         var val: isize = undefined;
         asm volatile ("ecall"
             : [val] "={x10}" (val),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
         );
         if (val >= 0) return val;
-        return @intToEnum(ErrorCode, val).toError(ErrorT);
+        return @enumFromInt(ErrorCode, val).toError(ErrorT);
     }
 
     inline fn legacyZeroArgsNoReturnWithError(eid: EID, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
         );
         if (err == .SUCCESS) return;
         return err.toError(ErrorT);
@@ -1624,7 +1624,7 @@ const ecall = struct {
     inline fn legacyZeroArgsNoReturnNoError(eid: EID) void {
         asm volatile ("ecall"
             :
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
             : "x10"
         );
     }
@@ -1633,7 +1633,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
@@ -1657,7 +1657,7 @@ const ecall = struct {
         if (is_64) {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
                   [arg1] "{x11}" (a1),
@@ -1668,7 +1668,7 @@ const ecall = struct {
         } else {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
                   [arg1] "{x11}" (a1),
@@ -1687,7 +1687,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
@@ -1716,7 +1716,7 @@ const ecall = struct {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
                   [value] "={x11}" (value),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
                   [arg1] "{x11}" (a1),
@@ -1728,7 +1728,7 @@ const ecall = struct {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
                   [value] "={x11}" (value),
-                : [eid] "{x17}" (@enumToInt(eid)),
+                : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
                   [arg0] "{x10}" (a0),
                   [arg1] "{x11}" (a1),
@@ -1747,7 +1747,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
@@ -1764,7 +1764,7 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
             : [err] "={x10}" (err),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
@@ -1781,7 +1781,7 @@ const ecall = struct {
         asm volatile ("ecall"
             : [err] "={x10}" (err),
               [value] "={x11}" (value),
-            : [eid] "{x17}" (@enumToInt(eid)),
+            : [eid] "{x17}" (@intFromEnum(eid)),
               [fid] "{x16}" (fid),
               [arg0] "{x10}" (a0),
               [arg1] "{x11}" (a1),
