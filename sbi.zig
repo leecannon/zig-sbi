@@ -49,13 +49,13 @@ pub const EID = enum(i32) {
 pub const base = struct {
     /// Returns the current SBI specification version.
     pub fn getSpecVersion() SpecVersion {
-        return @bitCast(SpecVersion, ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_SPEC_VERSION)));
+        return @bitCast(ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_SPEC_VERSION)));
     }
 
     /// Returns the current SBI implementation ID, which is different for every SBI implementation.
     /// It is intended that this implementation ID allows software to probe for SBI implementation quirks
     pub fn getImplementationId() ImplementationId {
-        return @enumFromInt(ImplementationId, ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_IMP_ID)));
+        return @enumFromInt(ecall.zeroArgsWithReturnNoError(.BASE, @intFromEnum(BASE_FID.GET_IMP_ID)));
     }
 
     /// Returns the current SBI implementation version.
@@ -166,22 +166,16 @@ pub const legacy = struct {
     /// Read a byte from debug console.
     pub fn consoleGetChar() error{FAILED}!u8 {
         if (runtime_safety) {
-            return @intCast(
-                u8,
-                ecall.legacyZeroArgsWithReturnWithError(
-                    .LEGACY_CONSOLE_GETCHAR,
-                    error{ NOT_SUPPORTED, FAILED },
-                ) catch |err| switch (err) {
-                    error.NOT_SUPPORTED => unreachable,
-                    else => |e| return e,
-                },
-            );
+            return @intCast(ecall.legacyZeroArgsWithReturnWithError(
+                .LEGACY_CONSOLE_GETCHAR,
+                error{ NOT_SUPPORTED, FAILED },
+            ) catch |err| switch (err) {
+                error.NOT_SUPPORTED => unreachable,
+                else => |e| return e,
+            });
         }
 
-        return @intCast(
-            u8,
-            try ecall.legacyZeroArgsWithReturnWithError(.LEGACY_CONSOLE_GETCHAR, error{FAILED}),
-        );
+        return @intCast(try ecall.legacyZeroArgsWithReturnWithError(.LEGACY_CONSOLE_GETCHAR, error{FAILED}));
     }
 
     pub fn clearIPIAvailable() bool {
@@ -211,7 +205,7 @@ pub const legacy = struct {
     ///
     /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
     pub fn sendIPI(hart_mask: [*]const usize) ImplementationDefinedError {
-        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_SEND_IPI, @bitCast(isize, @intFromPtr(hart_mask)));
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_SEND_IPI, @bitCast(@intFromPtr(hart_mask)));
     }
 
     pub fn remoteFenceIAvailable() bool {
@@ -223,7 +217,7 @@ pub const legacy = struct {
     ///
     /// This function returns `ImplementationDefinedError` as an implementation specific error is possible.
     pub fn remoteFenceI(hart_mask: [*]const usize) ImplementationDefinedError {
-        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_REMOTE_FENCE_I, @bitCast(isize, @intFromPtr(hart_mask)));
+        return ecall.legacyOneArgsNoReturnWithRawError(.LEGACY_REMOTE_FENCE_I, @bitCast(@intFromPtr(hart_mask)));
     }
 
     pub fn remoteSFenceVMAAvailable() bool {
@@ -237,9 +231,9 @@ pub const legacy = struct {
         if (runtime_safety) {
             ecall.legacyThreeArgsNoReturnWithError(
                 .LEGACY_REMOTE_SFENCE_VMA,
-                @bitCast(isize, @intFromPtr(hart_mask)),
-                @bitCast(isize, start),
-                @bitCast(isize, size),
+                @bitCast(@intFromPtr(hart_mask)),
+                @bitCast(start),
+                @bitCast(size),
                 error{NOT_SUPPORTED},
             ) catch unreachable;
             return;
@@ -247,9 +241,9 @@ pub const legacy = struct {
 
         ecall.legacyThreeArgsNoReturnNoError(
             .LEGACY_REMOTE_SFENCE_VMA,
-            @bitCast(isize, @intFromPtr(hart_mask)),
-            @bitCast(isize, start),
-            @bitCast(isize, size),
+            @bitCast(@intFromPtr(hart_mask)),
+            @bitCast(start),
+            @bitCast(size),
         );
     }
 
@@ -265,10 +259,10 @@ pub const legacy = struct {
     pub fn remoteSFenceVMAWithASID(hart_mask: [*]const usize, start: usize, size: usize, asid: usize) ImplementationDefinedError {
         return ecall.legacyFourArgsNoReturnWithRawError(
             .LEGACY_REMOTE_SFENCE_VMA_ASID,
-            @bitCast(isize, @intFromPtr(hart_mask)),
-            @bitCast(isize, start),
-            @bitCast(isize, size),
-            @bitCast(isize, asid),
+            @bitCast(@intFromPtr(hart_mask)),
+            @bitCast(start),
+            @bitCast(size),
+            @bitCast(asid),
         );
     }
 
@@ -359,8 +353,8 @@ pub const ipi = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -419,8 +413,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -464,8 +458,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -475,8 +469,8 @@ pub const rfence = struct {
                 @intFromEnum(RFENCE_FID.SFENCE_VMA),
                 bit_mask,
                 mask_base,
-                @bitCast(isize, start_addr),
-                @bitCast(isize, size),
+                @bitCast(start_addr),
+                @bitCast(size),
                 error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -491,8 +485,8 @@ pub const rfence = struct {
             @intFromEnum(RFENCE_FID.SFENCE_VMA),
             bit_mask,
             mask_base,
-            @bitCast(isize, start_addr),
-            @bitCast(isize, size),
+            @bitCast(start_addr),
+            @bitCast(size),
             error{ INVALID_PARAM, INVALID_ADDRESS },
         );
     }
@@ -515,8 +509,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -526,9 +520,9 @@ pub const rfence = struct {
                 @intFromEnum(RFENCE_FID.SFENCE_VMA_ASID),
                 bit_mask,
                 mask_base,
-                @bitCast(isize, start_addr),
-                @bitCast(isize, size),
-                @bitCast(isize, asid),
+                @bitCast(start_addr),
+                @bitCast(size),
+                @bitCast(asid),
                 error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -543,9 +537,9 @@ pub const rfence = struct {
             @intFromEnum(RFENCE_FID.SFENCE_VMA_ASID),
             bit_mask,
             mask_base,
-            @bitCast(isize, start_addr),
-            @bitCast(isize, size),
-            @bitCast(isize, asid),
+            @bitCast(start_addr),
+            @bitCast(size),
+            @bitCast(asid),
             error{ INVALID_PARAM, INVALID_ADDRESS },
         );
     }
@@ -568,8 +562,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -578,9 +572,9 @@ pub const rfence = struct {
             @intFromEnum(RFENCE_FID.HFENCE_GVMA_VMID),
             bit_mask,
             mask_base,
-            @bitCast(isize, start_addr),
-            @bitCast(isize, size),
-            @bitCast(isize, vmid),
+            @bitCast(start_addr),
+            @bitCast(size),
+            @bitCast(vmid),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
         );
     }
@@ -602,8 +596,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -612,8 +606,8 @@ pub const rfence = struct {
             @intFromEnum(RFENCE_FID.HFENCE_GVMA),
             bit_mask,
             mask_base,
-            @bitCast(isize, start_addr),
-            @bitCast(isize, size),
+            @bitCast(start_addr),
+            @bitCast(size),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
         );
     }
@@ -637,8 +631,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -647,9 +641,9 @@ pub const rfence = struct {
             @intFromEnum(RFENCE_FID.HFENCE_VVMA_ASID),
             bit_mask,
             mask_base,
-            @bitCast(isize, start_addr),
-            @bitCast(isize, size),
-            @bitCast(isize, asid),
+            @bitCast(start_addr),
+            @bitCast(size),
+            @bitCast(asid),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
         );
     }
@@ -671,8 +665,8 @@ pub const rfence = struct {
                 mask_base = 0;
             },
             .mask => |mask| {
-                bit_mask = @bitCast(isize, mask.mask);
-                mask_base = @bitCast(isize, mask.base);
+                bit_mask = @bitCast(mask.mask);
+                mask_base = @bitCast(mask.base);
             },
         }
 
@@ -681,8 +675,8 @@ pub const rfence = struct {
             @intFromEnum(RFENCE_FID.HFENCE_VVMA),
             bit_mask,
             mask_base,
-            @bitCast(isize, start_addr),
-            @bitCast(isize, size),
+            @bitCast(start_addr),
+            @bitCast(size),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS },
         );
     }
@@ -734,9 +728,9 @@ pub const hsm = struct {
             ecall.threeArgsNoReturnWithError(
                 .HSM,
                 @intFromEnum(HSM_FID.HART_START),
-                @bitCast(isize, hartid),
-                @bitCast(isize, start_addr),
-                @bitCast(isize, value),
+                @bitCast(hartid),
+                @bitCast(start_addr),
+                @bitCast(value),
                 error{ NOT_SUPPORTED, INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -748,9 +742,9 @@ pub const hsm = struct {
         return ecall.threeArgsNoReturnWithError(
             .HSM,
             @intFromEnum(HSM_FID.HART_START),
-            @bitCast(isize, hartid),
-            @bitCast(isize, start_addr),
-            @bitCast(isize, value),
+            @bitCast(hartid),
+            @bitCast(start_addr),
+            @bitCast(value),
             error{ INVALID_ADDRESS, INVALID_PARAM, ALREADY_AVAILABLE, FAILED },
         );
     }
@@ -785,10 +779,10 @@ pub const hsm = struct {
     /// the return value from this function may not represent the actual state of the hart at the time of return value verification.
     pub fn hartStatus(hartid: usize) error{INVALID_PARAM}!State {
         if (runtime_safety) {
-            return @enumFromInt(State, ecall.oneArgsWithReturnWithError(
+            return @enumFromInt(ecall.oneArgsWithReturnWithError(
                 .HSM,
                 @intFromEnum(HSM_FID.HART_GET_STATUS),
-                @bitCast(isize, hartid),
+                @bitCast(hartid),
                 error{ NOT_SUPPORTED, INVALID_PARAM },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -796,10 +790,10 @@ pub const hsm = struct {
             });
         }
 
-        return @enumFromInt(State, try ecall.oneArgsWithReturnWithError(
+        return @enumFromInt(try ecall.oneArgsWithReturnWithError(
             .HSM,
             @intFromEnum(HSM_FID.HART_GET_STATUS),
-            @bitCast(isize, hartid),
+            @bitCast(hartid),
             error{INVALID_PARAM},
         ));
     }
@@ -837,9 +831,9 @@ pub const hsm = struct {
         return ecall.threeArgsNoReturnWithError(
             .HSM,
             @intFromEnum(HSM_FID.HART_SUSPEND),
-            @intCast(isize, @intFromEnum(suspend_type)),
-            @bitCast(isize, resume_addr),
-            @bitCast(isize, value),
+            @intCast(@intFromEnum(suspend_type)),
+            @bitCast(resume_addr),
+            @bitCast(value),
             error{ NOT_SUPPORTED, INVALID_PARAM, INVALID_ADDRESS, FAILED },
         );
     }
@@ -915,8 +909,8 @@ pub const reset = struct {
         try ecall.twoArgsNoReturnWithError(
             .SRST,
             @intFromEnum(SRST_FID.RESET),
-            @intCast(isize, @intFromEnum(reset_type)),
-            @intCast(isize, @intFromEnum(reset_reason)),
+            @intCast(@intFromEnum(reset_type)),
+            @intCast(@intFromEnum(reset_reason)),
             error{ NOT_SUPPORTED, INVALID_PARAM, FAILED },
         );
         unreachable;
@@ -952,24 +946,24 @@ pub const pmu = struct {
     /// Returns the number of counters (both hardware and firmware)
     pub fn getNumberOfCounters() usize {
         if (runtime_safety) {
-            return @bitCast(usize, ecall.zeroArgsWithReturnWithError(
+            return @bitCast(ecall.zeroArgsWithReturnWithError(
                 .PMU,
                 @intFromEnum(PMU_FID.NUM_COUNTERS),
                 error{NOT_SUPPORTED},
             ) catch unreachable);
         }
 
-        return @bitCast(usize, ecall.zeroArgsWithReturnNoError(.PMU, @intFromEnum(PMU_FID.NUM_COUNTERS)));
+        return @bitCast(ecall.zeroArgsWithReturnNoError(.PMU, @intFromEnum(PMU_FID.NUM_COUNTERS)));
     }
 
     /// Get details about the specified counter such as underlying CSR number, width of the counter, type of
     /// counter hardware/firmware, etc.
     pub fn getCounterInfo(counter_index: usize) error{INVALID_PARAM}!CounterInfo {
         if (runtime_safety) {
-            return @bitCast(CounterInfo, ecall.oneArgsWithReturnWithError(
+            return @bitCast(ecall.oneArgsWithReturnWithError(
                 .PMU,
                 @intFromEnum(PMU_FID.COUNTER_GET_INFO),
-                @bitCast(isize, counter_index),
+                @bitCast(counter_index),
                 error{ NOT_SUPPORTED, INVALID_PARAM },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -977,10 +971,10 @@ pub const pmu = struct {
             });
         }
 
-        return @bitCast(CounterInfo, try ecall.oneArgsWithReturnWithError(
+        return @bitCast(try ecall.oneArgsWithReturnWithError(
             .PMU,
             @intFromEnum(PMU_FID.COUNTER_GET_INFO),
-            @bitCast(isize, counter_index),
+            @bitCast(counter_index),
             error{INVALID_PARAM},
         ));
     }
@@ -995,13 +989,13 @@ pub const pmu = struct {
     ) error{ NOT_SUPPORTED, INVALID_PARAM }!usize {
         const event_data = event.toEventData();
 
-        return @bitCast(usize, try ecall.fiveArgsLastArg64WithReturnWithError(
+        return @bitCast(try ecall.fiveArgsLastArg64WithReturnWithError(
             .PMU,
             @intFromEnum(PMU_FID.COUNTER_CFG_MATCH),
-            @bitCast(isize, counter_base),
-            @bitCast(isize, counter_mask),
-            @bitCast(isize, config_flags),
-            @bitCast(isize, event_data.event_index),
+            @bitCast(counter_base),
+            @bitCast(counter_mask),
+            @bitCast(config_flags),
+            @bitCast(event_data.event_index),
             event_data.event_data,
             error{ NOT_SUPPORTED, INVALID_PARAM },
         ));
@@ -1020,9 +1014,9 @@ pub const pmu = struct {
             ecall.fourArgsLastArg64NoReturnWithError(
                 .PMU,
                 @intFromEnum(PMU_FID.COUNTER_START),
-                @bitCast(isize, counter_base),
-                @bitCast(isize, counter_mask),
-                @bitCast(isize, start_flags),
+                @bitCast(counter_base),
+                @bitCast(counter_mask),
+                @bitCast(start_flags),
                 initial_value,
                 error{ NOT_SUPPORTED, INVALID_PARAM, ALREADY_STARTED },
             ) catch |err| switch (err) {
@@ -1036,9 +1030,9 @@ pub const pmu = struct {
         return ecall.fourArgsLastArg64NoReturnWithError(
             .PMU,
             @intFromEnum(PMU_FID.COUNTER_START),
-            @bitCast(isize, counter_base),
-            @bitCast(isize, counter_mask),
-            @bitCast(isize, start_flags),
+            @bitCast(counter_base),
+            @bitCast(counter_mask),
+            @bitCast(start_flags),
             initial_value,
             error{ INVALID_PARAM, ALREADY_STARTED },
         );
@@ -1054,9 +1048,9 @@ pub const pmu = struct {
             ecall.threeArgsNoReturnWithError(
                 .PMU,
                 @intFromEnum(PMU_FID.COUNTER_START),
-                @bitCast(isize, counter_base),
-                @bitCast(isize, counter_mask),
-                @bitCast(isize, stop_flags),
+                @bitCast(counter_base),
+                @bitCast(counter_mask),
+                @bitCast(stop_flags),
                 error{ NOT_SUPPORTED, INVALID_PARAM, ALREADY_STOPPED },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -1069,9 +1063,9 @@ pub const pmu = struct {
         return ecall.threeArgsNoReturnWithError(
             .PMU,
             @intFromEnum(PMU_FID.COUNTER_START),
-            @bitCast(isize, counter_base),
-            @bitCast(isize, counter_mask),
-            @bitCast(isize, stop_flags),
+            @bitCast(counter_base),
+            @bitCast(counter_mask),
+            @bitCast(stop_flags),
             error{ INVALID_PARAM, ALREADY_STOPPED },
         );
     }
@@ -1079,10 +1073,10 @@ pub const pmu = struct {
     /// Provide the current value of a firmware counter.
     pub fn readFirmwareCounter(counter_index: usize) error{INVALID_PARAM}!usize {
         if (runtime_safety) {
-            return @bitCast(usize, ecall.oneArgsWithReturnWithError(
+            return @bitCast(ecall.oneArgsWithReturnWithError(
                 .PMU,
                 @intFromEnum(PMU_FID.COUNTER_FW_READ),
-                @bitCast(isize, counter_index),
+                @bitCast(counter_index),
                 error{ NOT_SUPPORTED, INVALID_PARAM },
             ) catch |err| switch (err) {
                 error.NOT_SUPPORTED => unreachable,
@@ -1090,10 +1084,10 @@ pub const pmu = struct {
             });
         }
 
-        return @bitCast(usize, try ecall.oneArgsWithReturnWithError(
+        return @bitCast(try ecall.oneArgsWithReturnWithError(
             .PMU,
             @intFromEnum(PMU_FID.COUNTER_FW_READ),
-            @bitCast(isize, counter_index),
+            @bitCast(counter_index),
             error{INVALID_PARAM},
         ));
     }
@@ -1213,7 +1207,8 @@ pub const pmu = struct {
                     .event_data = 0,
                 },
                 .HW_CACHE => |hw_cache| EventData{
-                    .event_index = @as(u20, @bitCast(u16, hw_cache)) | (@as(u20, @intFromEnum(EventType.HW_CACHE)) << 16),
+                    .event_index = @as(u20, @as(u16, @bitCast(hw_cache))) |
+                        (@as(u20, @intFromEnum(EventType.HW_CACHE)) << 16),
                     .event_data = 0,
                 },
                 .HW_RAW => |hw_raw| EventData{
@@ -1349,7 +1344,7 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn zeroArgsWithReturnWithError(eid: EID, fid: i32, comptime ErrorT: type) ErrorT!isize {
@@ -1362,7 +1357,7 @@ const ecall = struct {
               [fid] "{x16}" (fid),
         );
         if (err == .SUCCESS) return value;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn zeroArgsWithReturnNoError(eid: EID, fid: i32) isize {
@@ -1385,7 +1380,7 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
         );
         if (err == .SUCCESS) return value;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn oneArgsWithReturnNoError(eid: EID, fid: i32, a0: isize) isize {
@@ -1412,8 +1407,8 @@ const ecall = struct {
                 :
                 : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
-                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
-                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(a0))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(a0 >> 32))),
                 : "x11", "x10"
             );
         }
@@ -1434,14 +1429,14 @@ const ecall = struct {
                 : [err] "={x10}" (err),
                 : [eid] "{x17}" (@intFromEnum(eid)),
                   [fid] "{x16}" (fid),
-                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
-                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(a0))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(a0 >> 32))),
                 : "x11"
             );
         }
 
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn legacyOneArgs64NoReturnNoError(eid: EID, a0: u64) void {
@@ -1456,8 +1451,8 @@ const ecall = struct {
             asm volatile ("ecall"
                 :
                 : [eid] "{x17}" (@intFromEnum(eid)),
-                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
-                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(a0))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(a0 >> 32))),
                 : "x10"
             );
         }
@@ -1476,8 +1471,8 @@ const ecall = struct {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
                 : [eid] "{x17}" (@intFromEnum(eid)),
-                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
-                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(a0))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(a0 >> 32))),
             );
         }
 
@@ -1496,13 +1491,13 @@ const ecall = struct {
             asm volatile ("ecall"
                 : [err] "={x10}" (err),
                 : [eid] "{x17}" (@intFromEnum(eid)),
-                  [arg0_lo] "{x10}" (@truncate(u32, a0)),
-                  [arg0_hi] "{x11}" (@truncate(u32, a0 >> 32)),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(a0))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(a0 >> 32))),
             );
         }
 
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn legacyOneArgsNoReturnNoError(eid: EID, a0: isize) void {
@@ -1532,7 +1527,7 @@ const ecall = struct {
               [arg0] "{x10}" (a0),
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn legacyThreeArgsNoReturnNoError(eid: EID, a0: isize, a1: isize, a2: isize) void {
@@ -1557,7 +1552,7 @@ const ecall = struct {
         );
 
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn legacyFourArgsNoReturnWithRawError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize) ImplementationDefinedError {
@@ -1586,7 +1581,7 @@ const ecall = struct {
         );
 
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn legacyFourArgsNoReturnNoError(eid: EID, a0: isize, a1: isize, a2: isize, a3: isize) void {
@@ -1608,7 +1603,7 @@ const ecall = struct {
             : [eid] "{x17}" (@intFromEnum(eid)),
         );
         if (val >= 0) return val;
-        return @enumFromInt(ErrorCode, val).toError(ErrorT);
+        return ErrorCode.toError(@enumFromInt(val), ErrorT);
     }
 
     inline fn legacyZeroArgsNoReturnWithError(eid: EID, comptime ErrorT: type) ErrorT!void {
@@ -1618,7 +1613,7 @@ const ecall = struct {
             : [eid] "{x17}" (@intFromEnum(eid)),
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn legacyZeroArgsNoReturnNoError(eid: EID) void {
@@ -1640,7 +1635,7 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn fourArgsLastArg64NoReturnWithError(
@@ -1673,14 +1668,14 @@ const ecall = struct {
                   [arg0] "{x10}" (a0),
                   [arg1] "{x11}" (a1),
                   [arg2] "{x12}" (a2),
-                  [arg3_lo] "{x13}" (@truncate(u32, a3)),
-                  [arg3_hi] "{x14}" (@truncate(u32, a3 >> 32)),
+                  [arg3_lo] "{x13}" (@as(u32, @truncate(a3))),
+                  [arg3_hi] "{x14}" (@as(u32, @truncate(a3 >> 32))),
                 : "x11"
             );
         }
 
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn fourArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, comptime ErrorT: type) ErrorT!void {
@@ -1696,7 +1691,7 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn fiveArgsLastArg64WithReturnWithError(
@@ -1734,13 +1729,13 @@ const ecall = struct {
                   [arg1] "{x11}" (a1),
                   [arg2] "{x12}" (a2),
                   [arg3] "{x13}" (a3),
-                  [arg4_lo] "{x14}" (@truncate(u32, a4)),
-                  [arg4_hi] "{x15}" (@truncate(u32, a4 >> 32)),
+                  [arg4_lo] "{x14}" (@as(u32, @truncate(a4))),
+                  [arg4_hi] "{x15}" (@as(u32, @truncate(a4 >> 32))),
             );
         }
 
         if (err == .SUCCESS) return value;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn fiveArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, a4: isize, comptime ErrorT: type) ErrorT!void {
@@ -1757,7 +1752,7 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn threeArgsNoReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!void {
@@ -1772,7 +1767,7 @@ const ecall = struct {
             : "x11"
         );
         if (err == .SUCCESS) return;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     inline fn threeArgsWithReturnWithError(eid: EID, fid: i32, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!isize {
@@ -1788,7 +1783,7 @@ const ecall = struct {
               [arg2] "{x12}" (a2),
         );
         if (err == .SUCCESS) return value;
-        return err.toError(ErrorT);
+        return ErrorCode.toError(err, ErrorT);
     }
 
     comptime {
