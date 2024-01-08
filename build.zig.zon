@@ -1,0 +1,11 @@
+.{
+    .name = "sbi",
+
+    .version = "2.0.3",
+
+    .minimum_zig_version = "0.12.0-dev.2063+804cee3b9",
+
+    .dependencies = .{},
+
+    .paths = .{ "build.zig", "build.zig.zon", "sbi.zig", "LICENCE" },
+}
