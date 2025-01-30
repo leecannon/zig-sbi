@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
+
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -1809,7 +1812,7 @@ const ErrorCode = enum(isize) {
     ALREADY_STOPPED = -8,
 
     fn toError(self: ErrorCode, comptime ErrorT: type) ErrorT {
-        const errors: []const std.builtin.Type.Error = @typeInfo(ErrorT).ErrorSet.?;
+        const errors: []const std.builtin.Type.Error = @typeInfo(ErrorT).error_set.?;
         inline for (errors) |err| {
             if (self == @field(ErrorCode, err.name)) return @field(ErrorT, err.name);
         }

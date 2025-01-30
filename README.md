@@ -4,22 +4,17 @@ Zig wrapper around the RISC-V SBI specification
 
 Implements SBI Specification v1.0.0
 
-## How to get
+## Installation
 
-### Gyro
+Add the dependency to `build.zig.zon`:
 
-`gyro add leecannon/sbi`
+```sh
+zig fetch --save git+https://github.com/leecannon/zig-sbi
+```
 
-### Zigmod
+Then add the following to `build.zig`:
 
-`zigmod aq add 1/leecannon/sbi`
-
-### Git
-
-#### Submodule
-
-`git submodule add https://github.com/leecannon/zig-sbi zig-sbi`
-
-#### Clone
-
-`git clone https://github.com/leecannon/zig-sbi`
+```zig
+const sbi = b.dependency("sbi", .{});
+exe.root_module.addImport("sbi", sbi.module("sbi"));
+```

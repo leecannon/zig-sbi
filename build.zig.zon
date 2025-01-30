@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
+
 .{
     .name = "sbi",
 
-    .version = "2.0.3",
+    .version = "3.0.0",
 
-    .minimum_zig_version = "0.12.0-dev.2063+804cee3b9",
+    .minimum_zig_version = "0.14.0-dev.2989+bf6ee7cb3",
 
-    .dependencies = .{},
-
-    .paths = .{ "build.zig", "build.zig.zon", "sbi.zig", "LICENCE" },
+    .paths = .{""},
 }
