@@ -2,11 +2,13 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 .{
-    .name = "sbi",
+    .name = .sbi,
 
-    .version = "4.0.0",
+    .version = "5.0.0",
 
-    .minimum_zig_version = "0.14.0-dev.2989+bf6ee7cb3",
+    .minimum_zig_version = "0.14.0-dev.3445+6c3cbb0c8",
 
     .paths = .{""},
+
+    .fingerprint = 0xca53dfc2fadbeb32,
 }

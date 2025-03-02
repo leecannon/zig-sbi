@@ -1,8 +1,8 @@
 # zig-sbi
 
-Zig wrapper around the RISC-V SBI specification
+Zig wrapper around the [RISC-V SBI specification](https://github.com/riscv-non-isa/riscv-sbi-doc).
 
-Implements SBI Specification v1.0.0
+Compatible with SBI Specification v3.0-rc1.
 
 ## Installation
 
