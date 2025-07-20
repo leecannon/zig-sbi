@@ -563,8 +563,8 @@ pub const hsm = struct {
     /// | ------------- | ---------------------- |
     /// | `satp`        | `0`                    |
     /// | `sstatus.SIE` | `0`                    |
-    /// | `a0`          | `hartid`               |
-    /// | `a1`          | `user_value` parameter |
+    /// | `x10`          | `hartid`               |
+    /// | `x11`          | `user_value` parameter |
     ///
     /// All other registers are in an undefined state.
     ///
@@ -675,8 +675,8 @@ pub const hsm = struct {
     /// | ------------- | ---------------------- |
     /// | `satp`        | `0`                    |
     /// | `sstatus.SIE` | `0`                    |
-    /// | `a0`          | `hartid`               |
-    /// | `a1`          | `user_value` parameter |
+    /// | `x10`          | `hartid`               |
+    /// | `x11`          | `user_value` parameter |
     ///
     /// All other registers are in an undefined state.
     ///
@@ -1820,8 +1820,8 @@ pub const system_suspend = struct {
     /// | ------------- | ---------------------- |
     /// | `satp`        | `0`                    |
     /// | `sstatus.SIE` | `0`                    |
-    /// | `a0`          | `hartid`               |
-    /// | `a1`          | `user_value` parameter |
+    /// | `x10`          | `hartid`               |
+    /// | `x11`          | `user_value` parameter |
     ///
     /// All other registers are in an undefined state.
     ///
@@ -2602,11 +2602,11 @@ const ecall = struct {
     inline fn zeroArgsNoReturnWithError(eid: base.EID, fid: i32, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-            : "a1"
-        );
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+            : .{ .x11 = true });
+
         if (err == .Success) {
             @branchHint(.likely);
             return;
@@ -2618,10 +2618,10 @@ const ecall = struct {
         var err: ErrorCode = undefined;
         var value: isize = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-              [value] "={a1}" (value),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
+            : [err] "={x10}" (err),
+              [value] "={x11}" (value),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
         );
         if (err == .Success) {
             @branchHint(.likely);
@@ -2632,22 +2632,20 @@ const ecall = struct {
 
     inline fn zeroArgsWithReturnNoError(eid: base.EID, fid: i32) isize {
         return asm volatile ("ecall"
-            : [value] "={a1}" (-> isize),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-            : "a0"
-        );
+            : [value] "={x11}" (-> isize),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+            : .{ .x10 = true });
     }
 
-    inline fn oneArgsNoReturnWithError(eid: base.EID, fid: i32, a0: isize, comptime ErrorT: type) ErrorT!void {
+    inline fn oneArgsNoReturnWithError(eid: base.EID, fid: i32, x10: isize, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-            : "a1"
-        );
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+            : .{ .x11 = true });
         if (err == .Success) {
             @branchHint(.likely);
             return;
@@ -2655,15 +2653,15 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn oneArgsWithReturnWithError(eid: base.EID, fid: i32, a0: isize, comptime ErrorT: type) ErrorT!isize {
+    inline fn oneArgsWithReturnWithError(eid: base.EID, fid: i32, x10: isize, comptime ErrorT: type) ErrorT!isize {
         var err: ErrorCode = undefined;
         var value: isize = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-              [value] "={a1}" (value),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
+            : [err] "={x10}" (err),
+              [value] "={x11}" (value),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
         );
         if (err == .Success) {
             @branchHint(.likely);
@@ -2672,56 +2670,51 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn oneArgsWithReturnNoError(eid: base.EID, fid: i32, a0: isize) isize {
+    inline fn oneArgsWithReturnNoError(eid: base.EID, fid: i32, x10: isize) isize {
         return asm volatile ("ecall"
-            : [value] "={a1}" (-> isize),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-            : "a0"
-        );
+            : [value] "={x11}" (-> isize),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+            : .{ .x10 = true });
     }
 
-    inline fn oneArgs64NoReturnNoError(eid: base.EID, fid: i32, a0: u64) void {
+    inline fn oneArgs64NoReturnNoError(eid: base.EID, fid: i32, x10: u64) void {
         if (is_64) {
             asm volatile ("ecall"
                 :
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                : "a1", "a0"
-            );
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                : .{ .x11 = true, .x10 = true });
         } else {
             asm volatile ("ecall"
                 :
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0_lo] "{a0}" (@as(u32, @truncate(a0))),
-                  [arg0_hi] "{a1}" (@as(u32, @truncate(a0 >> 32))),
-                : "a1", "a0"
-            );
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(x10))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(x10 >> 32))),
+                : .{ .x11 = true, .x10 = true });
         }
     }
 
-    inline fn oneArgs64NoReturnWithError(eid: base.EID, fid: i32, a0: u64, comptime ErrorT: type) ErrorT!void {
+    inline fn oneArgs64NoReturnWithError(eid: base.EID, fid: i32, x10: u64, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         if (is_64) {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                : "a1"
-            );
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                : .{ .x11 = true });
         } else {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0_lo] "{a0}" (@as(u32, @truncate(a0))),
-                  [arg0_hi] "{a1}" (@as(u32, @truncate(a0 >> 32))),
-                : "a1"
-            );
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(x10))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(x10 >> 32))),
+                : .{ .x11 = true });
         }
 
         if (err == .Success) {
@@ -2731,16 +2724,15 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn twoArgsNoReturnWithError(eid: base.EID, fid: i32, a0: isize, a1: isize, comptime ErrorT: type) ErrorT!void {
+    inline fn twoArgsNoReturnWithError(eid: base.EID, fid: i32, x10: isize, x11: isize, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-            : "a1"
-        );
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+            : .{ .x11 = true });
         if (err == .Success) {
             @branchHint(.likely);
             return;
@@ -2748,28 +2740,26 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn twoArgsLastArg64NoReturnWithError(eid: base.EID, fid: i32, a0: isize, a1: u64, comptime ErrorT: type) ErrorT!void {
+    inline fn twoArgsLastArg64NoReturnWithError(eid: base.EID, fid: i32, x10: isize, x11: u64, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
 
         if (is_64) {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                  [arg1] "{a1}" (a1),
-                : "a1"
-            );
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                  [arg1] "{x11}" (x11),
+                : .{ .x11 = true });
         } else {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                  [arg1_lo] "{a1}" (@as(u32, @truncate(a1))),
-                  [arg1_hi] "{a2}" (@as(u32, @truncate(a1 >> 32))),
-                : "a1"
-            );
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                  [arg1_lo] "{x11}" (@as(u32, @truncate(x11))),
+                  [arg1_hi] "{x12}" (@as(u32, @truncate(x11 >> 32))),
+                : .{ .x11 = true });
         }
 
         if (err == .Success) {
@@ -2782,37 +2772,35 @@ const ecall = struct {
     inline fn fourArgsLastArg64NoReturnWithError(
         eid: base.EID,
         fid: i32,
-        a0: isize,
-        a1: isize,
-        a2: isize,
-        a3: u64,
+        x10: isize,
+        x11: isize,
+        x12: isize,
+        x13: u64,
         comptime ErrorT: type,
     ) ErrorT!void {
         var err: ErrorCode = undefined;
 
         if (is_64) {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                  [arg1] "{a1}" (a1),
-                  [arg2] "{a2}" (a2),
-                  [arg3] "{a3}" (a3),
-                : "a1"
-            );
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                  [arg1] "{x11}" (x11),
+                  [arg2] "{x12}" (x12),
+                  [arg3] "{x13}" (x13),
+                : .{ .x11 = true });
         } else {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                  [arg1] "{a1}" (a1),
-                  [arg2] "{a2}" (a2),
-                  [arg3_lo] "{a3}" (@as(u32, @truncate(a3))),
-                  [arg3_hi] "{a4}" (@as(u32, @truncate(a3 >> 32))),
-                : "a1"
-            );
+                : [err] "={x10}" (err),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                  [arg1] "{x11}" (x11),
+                  [arg2] "{x12}" (x12),
+                  [arg3_lo] "{x13}" (@as(u32, @truncate(x13))),
+                  [arg3_hi] "{x14}" (@as(u32, @truncate(x13 >> 32))),
+                : .{ .x11 = true });
         }
 
         if (err == .Success) {
@@ -2822,18 +2810,17 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn fourArgsNoReturnWithError(eid: base.EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, comptime ErrorT: type) ErrorT!void {
+    inline fn fourArgsNoReturnWithError(eid: base.EID, fid: i32, x10: isize, x11: isize, x12: isize, x13: isize, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-              [arg2] "{a2}" (a2),
-              [arg3] "{a3}" (a3),
-            : "a1"
-        );
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+              [arg2] "{x12}" (x12),
+              [arg3] "{x13}" (x13),
+            : .{ .x11 = true });
         if (err == .Success) {
             @branchHint(.likely);
             return;
@@ -2844,11 +2831,11 @@ const ecall = struct {
     inline fn fiveArgsLastArg64WithReturnWithError(
         eid: base.EID,
         fid: i32,
-        a0: isize,
-        a1: isize,
-        a2: isize,
-        a3: isize,
-        a4: u64,
+        x10: isize,
+        x11: isize,
+        x12: isize,
+        x13: isize,
+        x14: u64,
         comptime ErrorT: type,
     ) ErrorT!isize {
         var err: ErrorCode = undefined;
@@ -2856,28 +2843,28 @@ const ecall = struct {
 
         if (is_64) {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                  [value] "={a1}" (value),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                  [arg1] "{a1}" (a1),
-                  [arg2] "{a2}" (a2),
-                  [arg3] "{a3}" (a3),
-                  [arg4] "{a4}" (a4),
+                : [err] "={x10}" (err),
+                  [value] "={x11}" (value),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                  [arg1] "{x11}" (x11),
+                  [arg2] "{x12}" (x12),
+                  [arg3] "{x13}" (x13),
+                  [arg4] "{x14}" (x14),
             );
         } else {
             asm volatile ("ecall"
-                : [err] "={a0}" (err),
-                  [value] "={a1}" (value),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [fid] "{a6}" (fid),
-                  [arg0] "{a0}" (a0),
-                  [arg1] "{a1}" (a1),
-                  [arg2] "{a2}" (a2),
-                  [arg3] "{a3}" (a3),
-                  [arg4_lo] "{a4}" (@as(u32, @truncate(a4))),
-                  [arg4_hi] "{a5}" (@as(u32, @truncate(a4 >> 32))),
+                : [err] "={x10}" (err),
+                  [value] "={x11}" (value),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [fid] "{x16}" (fid),
+                  [arg0] "{x10}" (x10),
+                  [arg1] "{x11}" (x11),
+                  [arg2] "{x12}" (x12),
+                  [arg3] "{x13}" (x13),
+                  [arg4_lo] "{x14}" (@as(u32, @truncate(x14))),
+                  [arg4_hi] "{x15}" (@as(u32, @truncate(x14 >> 32))),
             );
         }
 
@@ -2888,19 +2875,18 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn fiveArgsNoReturnWithError(eid: base.EID, fid: i32, a0: isize, a1: isize, a2: isize, a3: isize, a4: isize, comptime ErrorT: type) ErrorT!void {
+    inline fn fiveArgsNoReturnWithError(eid: base.EID, fid: i32, x10: isize, x11: isize, x12: isize, x13: isize, x14: isize, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-              [arg2] "{a2}" (a2),
-              [arg3] "{a3}" (a3),
-              [arg4] "{a4}" (a4),
-            : "a1"
-        );
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+              [arg2] "{x12}" (x12),
+              [arg3] "{x13}" (x13),
+              [arg4] "{x14}" (x14),
+            : .{ .x11 = true });
         if (err == .Success) {
             @branchHint(.likely);
             return;
@@ -2908,17 +2894,16 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn threeArgsNoReturnWithError(eid: base.EID, fid: i32, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!void {
+    inline fn threeArgsNoReturnWithError(eid: base.EID, fid: i32, x10: isize, x11: isize, x12: isize, comptime ErrorT: type) ErrorT!void {
         var err: ErrorCode = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-              [arg2] "{a2}" (a2),
-            : "a1"
-        );
+            : [err] "={x10}" (err),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+              [arg2] "{x12}" (x12),
+            : .{ .x11 = true });
         if (err == .Success) {
             @branchHint(.likely);
             return;
@@ -2926,17 +2911,17 @@ const ecall = struct {
         return ErrorCode.toError(err, ErrorT);
     }
 
-    inline fn threeArgsWithReturnWithError(eid: base.EID, fid: i32, a0: isize, a1: isize, a2: isize, comptime ErrorT: type) ErrorT!isize {
+    inline fn threeArgsWithReturnWithError(eid: base.EID, fid: i32, x10: isize, x11: isize, x12: isize, comptime ErrorT: type) ErrorT!isize {
         var err: ErrorCode = undefined;
         var value: isize = undefined;
         asm volatile ("ecall"
-            : [err] "={a0}" (err),
-              [value] "={a1}" (value),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [fid] "{a6}" (fid),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-              [arg2] "{a2}" (a2),
+            : [err] "={x10}" (err),
+              [value] "={x11}" (value),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [fid] "{x16}" (fid),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+              [arg2] "{x12}" (x12),
         );
         if (err == .Success) {
             @branchHint(.likely);
@@ -2948,79 +2933,78 @@ const ecall = struct {
     inline fn legacyZeroArgsNoReturn(eid: base.EID) void {
         asm volatile ("ecall"
             :
-            : [eid] "{a7}" (@intFromEnum(eid)),
-            : "a0"
-        );
+            : [eid] "{x17}" (@intFromEnum(eid)),
+            : .{ .x10 = true });
     }
 
     inline fn legacyZeroArgsWithReturn(eid: base.EID) isize {
         var val: isize = undefined;
 
         asm volatile ("ecall"
-            : [val] "={a0}" (val),
-            : [eid] "{a7}" (@intFromEnum(eid)),
+            : [val] "={x10}" (val),
+            : [eid] "{x17}" (@intFromEnum(eid)),
         );
 
         return val;
     }
 
-    inline fn legacyOneArgsWithReturn(eid: base.EID, a0: isize) isize {
+    inline fn legacyOneArgsWithReturn(eid: base.EID, x10: isize) isize {
         var val: isize = undefined;
 
         asm volatile ("ecall"
-            : [val] "={a0}" (val),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [arg0] "{a0}" (a0),
+            : [val] "={x10}" (val),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [arg0] "{x10}" (x10),
         );
 
         return val;
     }
 
-    inline fn legacyOneArgs64WithReturn(eid: base.EID, a0: u64) isize {
+    inline fn legacyOneArgs64WithReturn(eid: base.EID, x10: u64) isize {
         var val: isize = undefined;
 
         if (is_64) {
             asm volatile ("ecall"
-                : [val] "={a0}" (val),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [arg0] "{a0}" (a0),
+                : [val] "={x10}" (val),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [arg0] "{x10}" (x10),
             );
         } else {
             asm volatile ("ecall"
-                : [val] "={a0}" (val),
-                : [eid] "{a7}" (@intFromEnum(eid)),
-                  [arg0_lo] "{a0}" (@as(u32, @truncate(a0))),
-                  [arg0_hi] "{a1}" (@as(u32, @truncate(a0 >> 32))),
+                : [val] "={x10}" (val),
+                : [eid] "{x17}" (@intFromEnum(eid)),
+                  [arg0_lo] "{x10}" (@as(u32, @truncate(x10))),
+                  [arg0_hi] "{x11}" (@as(u32, @truncate(x10 >> 32))),
             );
         }
 
         return val;
     }
 
-    inline fn legacyThreeArgsWithReturn(eid: base.EID, a0: isize, a1: isize, a2: isize) isize {
+    inline fn legacyThreeArgsWithReturn(eid: base.EID, x10: isize, x11: isize, x12: isize) isize {
         var val: isize = undefined;
 
         asm volatile ("ecall"
-            : [val] "={a0}" (val),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-              [arg2] "{a2}" (a2),
+            : [val] "={x10}" (val),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+              [arg2] "{x12}" (x12),
         );
 
         return val;
     }
 
-    inline fn legacyFourArgsWithReturn(eid: base.EID, a0: isize, a1: isize, a2: isize, a3: isize) isize {
+    inline fn legacyFourArgsWithReturn(eid: base.EID, x10: isize, x11: isize, x12: isize, x13: isize) isize {
         var val: isize = undefined;
 
         asm volatile ("ecall"
-            : [val] "={a0}" (val),
-            : [eid] "{a7}" (@intFromEnum(eid)),
-              [arg0] "{a0}" (a0),
-              [arg1] "{a1}" (a1),
-              [arg2] "{a2}" (a2),
-              [arg3] "{a3}" (a3),
+            : [val] "={x10}" (val),
+            : [eid] "{x17}" (@intFromEnum(eid)),
+              [arg0] "{x10}" (x10),
+              [arg1] "{x11}" (x11),
+              [arg2] "{x12}" (x12),
+              [arg3] "{x13}" (x13),
         );
 
         return val;
